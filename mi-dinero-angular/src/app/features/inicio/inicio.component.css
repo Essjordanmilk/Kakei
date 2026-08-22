@@ -1,0 +1,69 @@
+/* Estilos específicos del módulo Inicio.
+   Los tokens de color, fuentes y componentes base
+   viven en src/styles.css (global). */
+
+:host {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.portada {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.portada h1 {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.portada .subtitulo {
+  color: var(--color-texto-suave);
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+
+.modulos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modulo-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: 18px;
+  text-decoration: none;
+  color: var(--color-texto);
+  text-align: left;
+  transition: border-color 0.15s;
+}
+
+.modulo-card:hover {
+  border-color: var(--color-primario);
+}
+
+.modulo-icono {
+  font-size: 28px;
+  width: 48px;
+  text-align: center;
+}
+
+.modulo-texto strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.modulo-texto span {
+  font-size: 13px;
+  color: var(--color-texto-suave);
+}

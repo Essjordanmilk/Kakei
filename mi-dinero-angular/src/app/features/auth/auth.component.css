@@ -1,0 +1,129 @@
+/* Estructura de campos del formulario de auth */
+.campo-form {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.campo-form label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.campo-error {
+  display: block;
+  color: var(--color-negativo);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.mensaje-exito {
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid var(--color-positivo);
+  color: var(--color-positivo);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+/* Campo de contraseña con botón de mostrar/ocultar */
+.campo-password {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.campo-password input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.btn-ojo {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 6px;
+  line-height: 1;
+  color: var(--color-texto-suave);
+}
+
+.btn-ojo:hover {
+  color: var(--color-texto);
+}
+
+/* Barra de fuerza de contraseña */
+.fuerza {
+  margin-top: 8px;
+}
+
+.fuerza-barra {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-borde);
+  overflow: hidden;
+}
+
+.fuerza-relleno {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.fuerza-etiqueta {
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.nivel-muy-debil { background: #f87171; color: #f87171; }
+.nivel-debil { background: #fb923c; color: #fb923c; }
+.nivel-media { background: #fbbf24; color: #fbbf24; }
+.nivel-fuerte { background: #a3e635; color: #84cc16; }
+.nivel-muy-fuerte { background: #4ade80; color: #4ade80; }
+
+.recomendaciones {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-texto-suave);
+}
+
+.recomendaciones li {
+  margin: 2px 0;
+  padding-left: 16px;
+  position: relative;
+}
+
+.recomendaciones li::before {
+  content: '○';
+  position: absolute;
+  left: 0;
+}
+
+/* Sección opcional de datos extra */
+.campo-extra {
+  margin: 4px 0 14px;
+  font-size: 13px;
+  color: var(--color-texto-suave);
+}
+
+.campo-extra summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-primario);
+  margin-bottom: 8px;
+}
+
+/* El botón de submit hereda .btn-primario; deshabilitado */
+.btn-login-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
