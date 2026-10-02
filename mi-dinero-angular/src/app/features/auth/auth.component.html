@@ -1,166 +1,24 @@
-<div class="vista-login">
-  <div class="login-box">
-    @if (modoRegistro()) {
-      <h1>Crear cuenta</h1>
-      <p class="subtitulo">Completa tus datos para empezar</p>
+<main class="vista-login">
+  <section class="login-box" aria-labelledby="titulo-auth">
+    <header class="login-header">
+      <h1 id="titulo-auth">{{ textos().titulo }}</h1>
+      <p class="subtitulo">{{ textos().subtitulo }}</p>
+    </header>
 
-      @if (regExito()) {
-        <div class="mensaje-exito">{{ regExito() }}</div>
-      }
-
-      <form (ngSubmit)="enviarRegistro()">
-        <div class="campo-form">
-          <label>Nombres *</label>
-          <input type="text" [(ngModel)]="regNombres" name="regNombres"
-            placeholder="Ej: María José" autocomplete="given-name" />
-          @if (erroresRegistro()['nombres']) {
-            <span class="campo-error">{{ erroresRegistro()['nombres'] }}</span>
-          }
-        </div>
-
-        <div class="campo-form">
-          <label>Apellidos *</label>
-          <input type="text" [(ngModel)]="regApellidos" name="regApellidos"
-            placeholder="Ej: Pérez Gómez" autocomplete="family-name" />
-          @if (erroresRegistro()['apellidos']) {
-            <span class="campo-error">{{ erroresRegistro()['apellidos'] }}</span>
-          }
-        </div>
-
-        <div class="campo-form">
-          <label>Correo *</label>
-          <input type="email" [(ngModel)]="regEmail" name="regEmail"
-            placeholder="tucorreo@ejemplo.com" autocomplete="email" />
-          @if (erroresRegistro()['email']) {
-            <span class="campo-error">{{ erroresRegistro()['email'] }}</span>
-          }
-        </div>
-
-        <div class="campo-form">
-          <label>Teléfono *</label>
-          <input type="tel" [(ngModel)]="regTelefono" name="regTelefono"
-            placeholder="+57 300 123 4567" autocomplete="tel" />
-          @if (erroresRegistro()['telefono']) {
-            <span class="campo-error">{{ erroresRegistro()['telefono'] }}</span>
-          }
-        </div>
-
-        <div class="campo-form">
-          <label>Contraseña *</label>
-          <div class="campo-password">
-            <input [type]="mostrarRegPassword() ? 'text' : 'password'"
-              [(ngModel)]="regPassword" name="regPassword"
-              placeholder="Crea una clave segura" autocomplete="new-password" />
-            <button type="button" class="btn-ojo" (click)="mostrarRegPassword.set(!mostrarRegPassword())"
-              [attr.aria-label]="mostrarRegPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'">
-              {{ mostrarRegPassword() ? '🙈' : '👁️' }}
-            </button>
-          </div>
-          @if (erroresRegistro()['password']) {
-            <span class="campo-error">{{ erroresRegistro()['password'] }}</span>
-          }
-
-          <!-- Barra de fuerza -->
-          <div class="fuerza" [class.visible]="regPassword().length > 0">
-            <div class="fuerza-barra">
-              <div class="fuerza-relleno nivel-{{ evalPassword().nivel }}"
-                [style.width.%]="evalPassword().puntuacion"></div>
-            </div>
-            <div class="fuerza-etiqueta nivel-{{ evalPassword().nivel }}">
-              Seguridad: {{ evalPassword().etiqueta }}
-            </div>
-            @if (evalPassword().recomendaciones.length > 0) {
-              <ul class="recomendaciones">
-                @for (r of evalPassword().recomendaciones; track r) {
-                  <li>{{ r }}</li>
-                }
-              </ul>
-            }
-          </div>
-        </div>
-
-        <div class="campo-form">
-          <label>Confirmar contraseña *</label>
-          <div class="campo-password">
-            <input [type]="mostrarRegConfirmar() ? 'text' : 'password'"
-              [(ngModel)]="regConfirmar" name="regConfirmar"
-              placeholder="Repite la contraseña" autocomplete="new-password" />
-            <button type="button" class="btn-ojo" (click)="mostrarRegConfirmar.set(!mostrarRegConfirmar())"
-              [attr.aria-label]="mostrarRegConfirmar() ? 'Ocultar contraseña' : 'Mostrar contraseña'">
-              {{ mostrarRegConfirmar() ? '🙈' : '👁️' }}
-            </button>
-          </div>
-          @if (erroresRegistro()['confirmar']) {
-            <span class="campo-error">{{ erroresRegistro()['confirmar'] }}</span>
-          }
-        </div>
-
-        <details class="campo-extra">
-          <summary>Datos opcionales (útiles para la futura IA)</summary>
-          <div class="campo-form">
-            <label>Fecha de nacimiento</label>
-            <input type="date" [(ngModel)]="regFechaNacimiento" name="regFechaNacimiento" />
-          </div>
-          <div class="campo-form">
-            <label>Ciudad</label>
-            <input type="text" [(ngModel)]="regCiudad" name="regCiudad" placeholder="Ej: Bogotá" />
-          </div>
-          <div class="campo-form">
-            <label>Moneda preferida</label>
-            <select [(ngModel)]="regMoneda" name="regMoneda">
-              @for (m of monedas; track m) {
-                <option [value]="m">{{ m }}</option>
-              }
-            </select>
-          </div>
-          <div class="campo-form">
-            <label>Objetivo principal</label>
-            <input type="text" [(ngModel)]="regObjetivo" name="regObjetivo"
-              placeholder="Ej: Ahorrar para viaje, salir de deudas..." />
-          </div>
-        </details>
-
-        @if (regError()) {
-          <p class="login-error">{{ regError() }}</p>
-        }
-
-        <button type="submit" class="btn-primario btn-login-submit" [disabled]="!registroValido()">
-          Crear cuenta
-        </button>
-      </form>
-
-      <button class="btn-link" (click)="alternarModo()">
-        ¿Ya tienes cuenta? Inicia sesión
-      </button>
-    } @else {
-      <h1>Mi Dinero</h1>
-      <p class="subtitulo">Control personal de finanzas</p>
-      <form (ngSubmit)="enviarLogin()">
-        <div class="campo-form">
-          <label>Correo</label>
-          <input type="email" [(ngModel)]="loginEmail" name="loginEmail"
-            placeholder="tucorreo@ejemplo.com" autocomplete="email" />
-        </div>
-        <div class="campo-form">
-          <label>Contraseña</label>
-          <div class="campo-password">
-            <input [type]="mostrarLoginPassword() ? 'text' : 'password'"
-              [(ngModel)]="loginPassword" name="loginPassword"
-              placeholder="Tu contraseña" autocomplete="current-password" />
-            <button type="button" class="btn-ojo" (click)="mostrarLoginPassword.set(!mostrarLoginPassword())"
-              [attr.aria-label]="mostrarLoginPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'">
-              {{ mostrarLoginPassword() ? '🙈' : '👁️' }}
-            </button>
-          </div>
-        </div>
-        @if (loginError()) {
-          <p class="login-error">{{ loginError() }}</p>
-        }
-        <button type="submit" class="btn-primario btn-login-submit">Entrar</button>
-      </form>
-      <button class="btn-link" (click)="alternarModo()">
-        ¿No tienes cuenta? Crear una
-      </button>
+    @if (mensajeExito()) {
+      <p class="mensaje-exito" role="status">{{ mensajeExito() }}</p>
     }
-  </div>
-</div>
+
+    @if (modo() === 'registro') {
+      <app-registro-form (registrado)="alRegistrar($event)" />
+    } @else {
+      <app-login-form />
+    }
+
+    <footer>
+      <button type="button" class="btn-link" (click)="alternarModo()">{{ textos().alternar }}</button>
+    </footer>
+  </section>
+</main>
+
+<app-page-footer />

@@ -11,56 +11,69 @@ export interface EvaluacionPassword {
   cumpleRequisitos: boolean; // longitud + mayúscula + minúscula + número + símbolo
 }
 
-const RECOMENDACIONES_BASE = {
-  longitud: 'Usa al menos 8 caracteres',
-  minuscula: 'Incluye al menos una minúscula (a-z)',
-  mayuscula: 'Incluye al menos una mayúscula (A-Z)',
-  numero: 'Incluye al menos un número (0-9)',
-  simbolo: 'Incluye al menos un símbolo (!@#$%^&*)',
-} as const;
+interface ReglaPassword {
+  readonly cumple: (password: string) => boolean;
+  readonly recomendacion: string;
+  readonly puntos: number;
+}
 
-export function evaluarPassword(pw: string): EvaluacionPassword {
-  const faltantes: string[] = [];
-  if (pw.length < 8) faltantes.push(RECOMENDACIONES_BASE.longitud);
-  if (!/[a-z]/.test(pw)) faltantes.push(RECOMENDACIONES_BASE.minuscula);
-  if (!/[A-Z]/.test(pw)) faltantes.push(RECOMENDACIONES_BASE.mayuscula);
-  if (!/[0-9]/.test(pw)) faltantes.push(RECOMENDACIONES_BASE.numero);
-  if (!/[^A-Za-z0-9]/.test(pw)) faltantes.push(RECOMENDACIONES_BASE.simbolo);
+interface UmbralNivel {
+  readonly minimo: number;
+  readonly nivel: NivelPassword;
+  readonly etiqueta: string;
+}
 
-  let puntos = 0;
-  if (pw.length >= 8) puntos += 20;
-  if (pw.length >= 12) puntos += 10;
-  if (/[a-z]/.test(pw)) puntos += 15;
-  if (/[A-Z]/.test(pw)) puntos += 15;
-  if (/[0-9]/.test(pw)) puntos += 20;
-  if (/[^A-Za-z0-9]/.test(pw)) puntos += 20;
-  if (/(.)\1\1/.test(pw)) puntos -= 10; // penaliza repetición excesiva
-  puntos = Math.max(0, Math.min(100, puntos));
+export const LONGITUD_MINIMA_LOGIN = 6;
+const LONGITUD_MINIMA_PASSWORD = 8;
+const LONGITUD_RECOMENDADA_PASSWORD = 12;
+const PUNTOS_LONGITUD_RECOMENDADA = 10;
+const PENALIZACION_REPETICION = 10;
+const PUNTUACION_MAXIMA = 100;
 
-  let nivel: NivelPassword = 'muy-debil';
-  let etiqueta = 'Muy débil';
-  if (puntos >= 80) {
-    nivel = 'muy-fuerte';
-    etiqueta = 'Muy fuerte';
-  } else if (puntos >= 60) {
-    nivel = 'fuerte';
-    etiqueta = 'Fuerte';
-  } else if (puntos >= 40) {
-    nivel = 'media';
-    etiqueta = 'Media';
-  } else if (puntos >= 20) {
-    nivel = 'debil';
-    etiqueta = 'Débil';
-  }
+const REGLAS_PASSWORD: readonly ReglaPassword[] = [
+  {
+    cumple: (pw) => pw.length >= LONGITUD_MINIMA_PASSWORD,
+    recomendacion: `Usa al menos ${LONGITUD_MINIMA_PASSWORD} caracteres`,
+    puntos: 20,
+  },
+  { cumple: (pw) => /[a-z]/.test(pw), recomendacion: 'Incluye al menos una minúscula (a-z)', puntos: 15 },
+  { cumple: (pw) => /[A-Z]/.test(pw), recomendacion: 'Incluye al menos una mayúscula (A-Z)', puntos: 15 },
+  { cumple: (pw) => /[0-9]/.test(pw), recomendacion: 'Incluye al menos un número (0-9)', puntos: 20 },
+  {
+    cumple: (pw) => /[^A-Za-z0-9]/.test(pw),
+    recomendacion: 'Incluye al menos un símbolo (!@#$%^&*)',
+    puntos: 20,
+  },
+];
 
-  const cumpleRequisitos =
-    pw.length >= 8 &&
-    /[a-z]/.test(pw) &&
-    /[A-Z]/.test(pw) &&
-    /[0-9]/.test(pw) &&
-    /[^A-Za-z0-9]/.test(pw);
+// Ordenados de mayor a menor: se toma el primero cuyo mínimo se alcance
+const NIVELES_PASSWORD: readonly UmbralNivel[] = [
+  { minimo: 80, nivel: 'muy-fuerte', etiqueta: 'Muy fuerte' },
+  { minimo: 60, nivel: 'fuerte', etiqueta: 'Fuerte' },
+  { minimo: 40, nivel: 'media', etiqueta: 'Media' },
+  { minimo: 20, nivel: 'debil', etiqueta: 'Débil' },
+  { minimo: 0, nivel: 'muy-debil', etiqueta: 'Muy débil' },
+];
 
-  return { puntuacion: puntos, nivel, etiqueta, recomendaciones: faltantes, cumpleRequisitos };
+export function evaluarPassword(password: string): EvaluacionPassword {
+  const cumplidas = REGLAS_PASSWORD.filter((regla) => regla.cumple(password));
+  const incumplidas = REGLAS_PASSWORD.filter((regla) => !regla.cumple(password));
+
+  let puntos = cumplidas.reduce((acc, regla) => acc + regla.puntos, 0);
+  if (password.length >= LONGITUD_RECOMENDADA_PASSWORD) puntos += PUNTOS_LONGITUD_RECOMENDADA;
+  if (/(.)\1\1/.test(password)) puntos -= PENALIZACION_REPETICION; // penaliza repetición excesiva
+  puntos = Math.max(0, Math.min(PUNTUACION_MAXIMA, puntos));
+
+  const umbral =
+    NIVELES_PASSWORD.find((n) => puntos >= n.minimo) ?? NIVELES_PASSWORD[NIVELES_PASSWORD.length - 1];
+
+  return {
+    puntuacion: puntos,
+    nivel: umbral.nivel,
+    etiqueta: umbral.etiqueta,
+    recomendaciones: incumplidas.map((regla) => regla.recomendacion),
+    cumpleRequisitos: incumplidas.length === 0,
+  };
 }
 
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -1,115 +1,138 @@
-import { Injectable, signal } from '@angular/core';
-import { db } from '../../core/supabase';
-import { diaSemanaIso, fechaHoyIso } from '../../core/utils';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { AuthService } from '../../core/auth.service';
+import { SUPABASE_CLIENT } from '../../core/supabase';
+import { MensajeError } from '../../core/tipos';
+import { diaSemanaIso, fechaDesdeIso, fechaHoyIso, fechaIsoLocal } from '../../core/utils';
+import {
+  DIAS_SEMANA,
+  DIAS_SEMANA_LABEL,
+  FRECUENCIA_DIARIA,
+  LIMITE_DIAS_RACHA,
+  TABLAS_HABITOS,
+} from './habitos.constantes';
+import {
+  DiaSemana,
+  EstadoHoy,
+  EstadoRegistro,
+  Habito,
+  HabitoPayload,
+  RegistroHabito,
+} from './habitos.models';
 
-export const DIAS_SEMANA = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
-export const DIAS_SEMANA_LABEL: Record<string, string> = {
-  dom: 'Dom', lun: 'Lun', mar: 'Mar', mie: 'Mié', jue: 'Jue', vie: 'Vie', sab: 'Sáb',
-};
-
-export interface Habito {
-  id: string;
-  nombre: string;
-  categoria: string;
-  frecuencia: string;
-  hora_objetivo: string | null;
-  prioridad: 'alta' | 'media' | 'baja';
-  activo: boolean;
-  created_at: string;
+function claveRegistro(habitoId: string, fechaIso: string): string {
+  return `${habitoId}|${fechaIso}`;
 }
 
-export interface RegistroHabito {
-  id: string;
-  habito_id: string;
-  fecha: string;
-  estado: 'completado' | 'saltado';
+function esDiaSemana(valor: string): valor is DiaSemana {
+  return (DIAS_SEMANA as readonly string[]).includes(valor);
 }
 
 @Injectable({ providedIn: 'root' })
 export class HabitosService {
-  readonly habitos = signal<Habito[]>([]);
-  readonly registros = signal<RegistroHabito[]>([]);
+  private readonly db = inject(SUPABASE_CLIENT);
+  private readonly auth = inject(AuthService);
+
+  private readonly estado = {
+    habitos: signal<Habito[]>([]),
+    registros: signal<RegistroHabito[]>([]),
+  };
+
+  readonly habitos = this.estado.habitos.asReadonly();
+
+  // Búsqueda O(1) de registros por hábito + fecha
+  private readonly registrosPorClave = computed<Map<string, RegistroHabito>>(
+    () => new Map(this.estado.registros().map((r) => [claveRegistro(r.habito_id, r.fecha), r])),
+  );
+
+  // Se recalcula solo cuando cambian hábitos o registros (antes se calculaba en cada render)
+  private readonly rachasActuales = computed<Map<string, number>>(
+    () => new Map(this.habitos().map((h) => [h.id, this.calcularRachaActual(h)])),
+  );
 
   constructor() {
-    this.iniciarAuth();
-  }
-
-  private iniciarAuth(): void {
-    db.auth.onAuthStateChange((_evento, sesion) => {
-      if (sesion) this.cargarTodo();
+    // Carga los datos al iniciar sesión y los limpia al cerrarla
+    effect(() => {
+      const usuarioId = this.auth.usuarioId();
+      untracked(() => (usuarioId ? void this.cargarTodo() : this.limpiar()));
     });
   }
 
+  // ============================================
+  // CARGA
+  // ============================================
   async cargarTodo(): Promise<void> {
     await Promise.all([this.cargarHabitos(), this.cargarRegistros()]);
   }
 
+  private limpiar(): void {
+    this.estado.habitos.set([]);
+    this.estado.registros.set([]);
+  }
+
   async cargarHabitos(): Promise<void> {
-    const { data, error } = await db
-      .from('habitos')
+    const { data, error } = await this.db
+      .from(TABLAS_HABITOS.habitos)
       .select('*')
       .eq('activo', true)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .overrideTypes<Habito[], { merge: false }>();
     if (error) {
       console.error(error);
       return;
     }
-    this.habitos.set(data as Habito[]);
+    this.estado.habitos.set(data);
   }
 
   async cargarRegistros(): Promise<void> {
-    const { data, error } = await db.from('habitos_registros').select('*');
+    const { data, error } = await this.db
+      .from(TABLAS_HABITOS.registros)
+      .select('*')
+      .overrideTypes<RegistroHabito[], { merge: false }>();
     if (error) {
       console.error(error);
       return;
     }
-    this.registros.set(data as RegistroHabito[]);
+    this.estado.registros.set(data);
   }
 
+  // ============================================
+  // CONSULTAS
+  // ============================================
   registroDe(habitoId: string, fechaIso: string): RegistroHabito | undefined {
-    return this.registros().find((r) => r.habito_id === habitoId && r.fecha === fechaIso);
+    return this.registrosPorClave().get(claveRegistro(habitoId, fechaIso));
+  }
+
+  estadoEn(habitoId: string, fechaIso: string): EstadoHoy {
+    return this.registroDe(habitoId, fechaIso)?.estado ?? 'pendiente';
+  }
+
+  diasDeFrecuencia(frecuencia: string): DiaSemana[] {
+    if (frecuencia === FRECUENCIA_DIARIA) return [];
+    return frecuencia
+      .split(',')
+      .map((d) => d.trim())
+      .filter(esDiaSemana);
   }
 
   habitoAplicaEnFecha(habito: Habito, fechaIso: string): boolean {
-    if (habito.frecuencia === 'diario') return true;
-    const diasActivos = habito.frecuencia.split(',').map((d) => d.trim());
-    const diaHoy = DIAS_SEMANA[diaSemanaIso(fechaIso)];
-    return diasActivos.includes(diaHoy);
+    if (habito.frecuencia === FRECUENCIA_DIARIA) return true;
+    return this.diasDeFrecuencia(habito.frecuencia).includes(DIAS_SEMANA[diaSemanaIso(fechaIso)]);
   }
 
   descripcionFrecuencia(frecuencia: string): string {
-    if (frecuencia === 'diario') return 'Todos los días';
-    return frecuencia
-      .split(',')
-      .map((d) => DIAS_SEMANA_LABEL[d.trim()])
+    if (frecuencia === FRECUENCIA_DIARIA) return 'Todos los días';
+    return this.diasDeFrecuencia(frecuencia)
+      .map((d) => DIAS_SEMANA_LABEL[d])
       .join(', ');
   }
 
-  // Racha actual: cuenta hacia atrás desde hoy, días "completado" consecutivos.
-  // Un día "saltado" o sin marcar ROMPE la racha. Hoy sin marcar no la rompe todavía.
-  calcularRachaActual(habito: Habito): number {
-    let racha = 0;
-    let fecha = new Date();
-    for (let i = 0; i < 3650; i++) {
-      const fechaIso = fecha.toISOString().slice(0, 10);
-      const esHoy = fechaIso === fechaHoyIso();
-      if (this.habitoAplicaEnFecha(habito, fechaIso)) {
-        const reg = this.registroDe(habito.id, fechaIso);
-        if (reg && reg.estado === 'completado') {
-          racha++;
-        } else if (esHoy && !reg) {
-          // hoy todavía no se marcó: no cuenta a favor ni rompe
-        } else {
-          break;
-        }
-      }
-      fecha.setDate(fecha.getDate() - 1);
-    }
-    return racha;
+  rachaActual(habitoId: string): number {
+    return this.rachasActuales().get(habitoId) ?? 0;
   }
 
   calcularRachaMasLarga(habito: Habito): number {
-    const fechasCompletadas = this.registros()
+    const fechasCompletadas = this.estado
+      .registros()
       .filter((r) => r.habito_id === habito.id && r.estado === 'completado')
       .map((r) => r.fecha)
       .sort();
@@ -118,71 +141,84 @@ export class HabitosService {
 
     let maxRacha = 1;
     let rachaActual = 1;
-
     for (let i = 1; i < fechasCompletadas.length; i++) {
-      const fechasEntreMedio = this.diasEsperadosEntre(
-        habito,
-        fechasCompletadas[i - 1],
-        fechasCompletadas[i],
-      );
-      if (fechasEntreMedio === 1) {
-        rachaActual++;
-        maxRacha = Math.max(maxRacha, rachaActual);
-      } else {
-        rachaActual = 1;
-      }
+      const esConsecutiva =
+        this.diasEsperadosEntre(habito, fechasCompletadas[i - 1], fechasCompletadas[i]) === 1;
+      rachaActual = esConsecutiva ? rachaActual + 1 : 1;
+      maxRacha = Math.max(maxRacha, rachaActual);
     }
     return maxRacha;
   }
 
-  // Cuenta cuántas "ocurrencias esperadas" del hábito hay entre dos fechas
+  // Racha actual: cuenta hacia atrás desde hoy, días "completado" consecutivos.
+  // Un día "saltado" o sin marcar ROMPE la racha. Hoy sin marcar no la rompe todavía.
+  private calcularRachaActual(habito: Habito): number {
+    const hoy = fechaHoyIso();
+    const fecha = new Date();
+    let racha = 0;
+
+    for (let i = 0; i < LIMITE_DIAS_RACHA; i++) {
+      const fechaIso = fechaIsoLocal(fecha);
+      if (this.habitoAplicaEnFecha(habito, fechaIso)) {
+        const registro = this.registroDe(habito.id, fechaIso);
+        const esHoySinMarcar = fechaIso === hoy && !registro;
+        if (registro?.estado === 'completado') {
+          racha++;
+        } else if (!esHoySinMarcar) {
+          break;
+        }
+      }
+      fecha.setDate(fecha.getDate() - 1);
+    }
+    return racha;
+  }
+
+  // Cuenta cuántas "ocurrencias esperadas" del hábito hay entre dos fechas (excluye la inicial)
   private diasEsperadosEntre(habito: Habito, fechaIsoA: string, fechaIsoB: string): number {
-    const [a1, m1, d1] = fechaIsoA.split('-').map(Number);
-    const [a2, m2, d2] = fechaIsoB.split('-').map(Number);
-    let cursor = new Date(a1, m1 - 1, d1);
-    const fin = new Date(a2, m2 - 1, d2);
+    const cursor = fechaDesdeIso(fechaIsoA);
+    const fin = fechaDesdeIso(fechaIsoB);
     let conteo = 0;
     cursor.setDate(cursor.getDate() + 1);
     while (cursor <= fin) {
-      const iso = cursor.toISOString().slice(0, 10);
-      if (this.habitoAplicaEnFecha(habito, iso)) conteo++;
+      if (this.habitoAplicaEnFecha(habito, fechaIsoLocal(cursor))) conteo++;
       cursor.setDate(cursor.getDate() + 1);
     }
     return conteo;
   }
 
-  async marcarHabito(habitoId: string, nuevoEstado: 'completado' | 'saltado'): Promise<void> {
+  // ============================================
+  // ESCRITURA
+  // ============================================
+  // Marcar dos veces el mismo estado lo desmarca
+  async marcarHabito(habitoId: string, nuevoEstado: EstadoRegistro): Promise<MensajeError> {
     const hoy = fechaHoyIso();
     const existente = this.registroDe(habitoId, hoy);
+    const tabla = this.db.from(TABLAS_HABITOS.registros);
 
-    if (existente && existente.estado === nuevoEstado) {
-      await db.from('habitos_registros').delete().eq('id', existente.id);
-    } else if (existente) {
-      await db.from('habitos_registros').update({ estado: nuevoEstado }).eq('id', existente.id);
-    } else {
-      await db.from('habitos_registros').insert({ habito_id: habitoId, fecha: hoy, estado: nuevoEstado });
-    }
+    const { error } = !existente
+      ? await tabla.insert({ habito_id: habitoId, fecha: hoy, estado: nuevoEstado })
+      : existente.estado === nuevoEstado
+        ? await tabla.delete().eq('id', existente.id)
+        : await tabla.update({ estado: nuevoEstado }).eq('id', existente.id);
 
     await this.cargarRegistros();
+    return error?.message ?? null;
   }
 
-  async guardarHabito(
-    payload: Partial<Habito>,
-    id?: string,
-  ): Promise<string | null> {
-    let error;
-    if (id) {
-      ({ error } = await db.from('habitos').update(payload).eq('id', id));
-    } else {
-      ({ error } = await db.from('habitos').insert(payload));
-    }
+  async guardarHabito(payload: HabitoPayload, id?: string): Promise<MensajeError> {
+    const tabla = this.db.from(TABLAS_HABITOS.habitos);
+    const { error } = id ? await tabla.update(payload).eq('id', id) : await tabla.insert(payload);
     if (error) return error.message;
     await this.cargarHabitos();
     return null;
   }
 
-  async eliminarHabito(id: string): Promise<string | null> {
-    const { error } = await db.from('habitos').update({ activo: false }).eq('id', id);
+  // Borrado lógico: conserva el historial de cumplimiento
+  async eliminarHabito(id: string): Promise<MensajeError> {
+    const { error } = await this.db
+      .from(TABLAS_HABITOS.habitos)
+      .update({ activo: false })
+      .eq('id', id);
     if (error) return error.message;
     await this.cargarHabitos();
     return null;

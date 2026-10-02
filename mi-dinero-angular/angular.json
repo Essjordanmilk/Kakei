@@ -50,6 +50,7 @@
               }
             ],
             "styles": [
+              "src/material-tema.scss",
               "src/styles.css"
             ]
           },
@@ -58,12 +59,12 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "600kB",
                   "maximumError": "1MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
+                  "maximumWarning": "6kB",
                   "maximumError": "8kB"
                 }
               ],
@@ -107,6 +108,7 @@
               }
             ],
             "styles": [
+              "src/material-tema.scss",
               "src/styles.css"
             ]
           }
