@@ -13,7 +13,7 @@ import { GraficaFlujoComponent } from '../../components/grafica-flujo/grafica-fl
 import { GraficaPresupuestoComponent } from '../../components/grafica-presupuesto/grafica-presupuesto.component';
 import { MetaAhorroCardComponent } from '../../components/meta-ahorro-card/meta-ahorro-card.component';
 import { ModalAjusteSaldoComponent } from '../../components/modal-ajuste-saldo/modal-ajuste-saldo.component';
-import { ModalConfiguracionComponent } from '../../components/modal-configuracion/modal-configuracion.component';
+import { ModalPresupuestosComponent } from '../../components/modal-presupuestos/modal-presupuestos.component';
 import { ModalMetaComponent } from '../../components/modal-meta/modal-meta.component';
 import { MontoMovimientoComponent } from '../../components/monto-movimiento/monto-movimiento.component';
 import { CANTIDAD_ULTIMOS_MOVIMIENTOS, colorDeSlot, ETIQUETAS_TIPO_CUENTA } from '../../dinero.constantes';
@@ -38,7 +38,7 @@ interface VariacionesMes {
     GastoFijoFilaComponent,
     MontoMovimientoComponent,
     ModalAjusteSaldoComponent,
-    ModalConfiguracionComponent,
+    ModalPresupuestosComponent,
     ModalMetaComponent,
     FechaCortaPipe,
     MonedaPipe,
@@ -52,7 +52,7 @@ export class DashboardTabComponent {
   protected readonly iconos = ICONOS;
   protected readonly etiquetaTipoCuenta = ETIQUETAS_TIPO_CUENTA;
   protected readonly modalAjusteAbierto = signal(false);
-  protected readonly modalConfiguracionAbierto = signal(false);
+  protected readonly modalPresupuestosAbierto = signal(false);
   protected readonly modalMeta = new ControlModal<MetaAhorro>();
 
   protected readonly ultimosMovimientos = computed<Transaccion[]>(() =>

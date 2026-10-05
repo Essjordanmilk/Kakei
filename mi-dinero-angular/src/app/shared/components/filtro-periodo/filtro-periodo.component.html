@@ -1,0 +1,25 @@
+<div class="filtro-periodo" role="group" aria-label="Período">
+  <button matIconButton type="button" aria-label="Mes anterior" (click)="moverMes(-1)">
+    <fa-icon [icon]="iconos.anterior" />
+  </button>
+
+  <mat-form-field class="campo-fecha">
+    <mat-label>Período</mat-label>
+    <mat-date-range-input [rangePicker]="selector">
+      <input matStartDate placeholder="Desde" [value]="desde()" (dateChange)="cambiarDesde($event)" />
+      <input matEndDate placeholder="Hasta" [value]="hasta()" (dateChange)="cambiarHasta($event)" />
+    </mat-date-range-input>
+    <mat-datepicker-toggle matIconSuffix [for]="selector">
+      <fa-icon matDatepickerToggleIcon [icon]="iconos.calendario" />
+    </mat-datepicker-toggle>
+    <mat-date-range-picker #selector />
+  </mat-form-field>
+
+  <button matIconButton type="button" aria-label="Mes siguiente" (click)="moverMes(1)">
+    <fa-icon [icon]="iconos.siguiente" />
+  </button>
+
+  @if (!esMesActual()) {
+    <button type="button" class="btn-secundario btn-pequeno" (click)="irAMesActual()">Este mes</button>
+  }
+</div>

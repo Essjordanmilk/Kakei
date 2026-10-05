@@ -4,9 +4,12 @@ import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { NotificacionService } from '../../../../core/notificacion.service';
 import { fechaHoyIso } from '../../../../core/utils';
 import { CampoFechaComponent } from '../../../../shared/components/campo-fecha/campo-fecha.component';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { ToggleOpcionesComponent } from '../../../../shared/components/toggle-opciones/toggle-opciones.component';
 import { ICONOS } from '../../../../shared/iconos';
+import { firmaFormulario } from '../../../../shared/utils/formulario';
 import { construirTransaccion } from '../../dinero.calculos';
 import {
   CUENTAS_POR_TIPO,
@@ -33,10 +36,10 @@ const SIN_CATEGORIA: SeleccionCategoria = { categoriaId: null, subcategoriaId: n
 //  - TRASLADO: cuenta de origen + cuenta destino  (sin categoría; no cambia el patrimonio)
 @Component({
   selector: 'app-modal-movimiento',
-  imports: [
-    FormsModule,
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS,
     FaIconComponent,
     CampoFechaComponent,
+    CampoMontoComponent,
     ModalComponent,
     ToggleOpcionesComponent,
     SelectorCategoriaComponent,
@@ -98,6 +101,23 @@ export class ModalMovimientoComponent {
     const accion = this.movimiento() ? 'Editar' : 'Registrar';
     return `${accion} ${ETIQUETAS_TIPO_MOVIMIENTO[this.tipo()].toLowerCase()}`;
   });
+
+  private readonly borrador = computed(() => ({
+    tipo: this.tipo(),
+    monto: this.monto(),
+    fecha: this.fecha(),
+    cuentaOrigenId: this.cuentaOrigenId(),
+    cuentaDestinoId: this.cuentaDestinoId(),
+    categoria: this.categoria(),
+    descripcion: this.descripcion(),
+  }));
+  private readonly borradorInicial = linkedSignal({
+    source: () => this.movimiento(),
+    computation: () => firmaFormulario(this.borrador()),
+  });
+  protected readonly hayCambios = computed(
+    () => firmaFormulario(this.borrador()) !== this.borradorInicial(),
+  );
 
   protected readonly etiquetaOrigen = computed<string>(() =>
     this.tipo() === 'TRASLADO' ? 'Desde la cuenta' : 'Pagado con',

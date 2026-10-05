@@ -1,23 +1,30 @@
 import { inject, Injectable } from '@angular/core';
 import { esObjeto } from '../../core/almacenamiento-local.service';
-import { SUPABASE_CLIENT } from '../../core/supabase';
 import { MensajeError } from '../../core/tipos';
 import { fechaHoyIso } from '../../core/utils';
 import { descargarJson } from '../../shared/utils/archivos';
 import { esColoresCategoria } from './dinero-preferencias.service';
+import { LocalDbService } from './local-db.service';
 import {
+  claveColorDeSlot,
   FORMATO_RESPALDO,
+  FORMATO_RESPALDO_LEGADO,
   ORDEN_TABLAS_RESPALDO,
   PREFIJO_ARCHIVO_RESPALDO,
   PREFIJO_ARCHIVO_SEGURIDAD,
   TABLAS_DINERO,
   TablaDinero,
-  TAMANO_LOTE_ESCRITURA,
-  TAMANO_PAGINA_LECTURA,
+  VERSION_MINIMA_RESPALDO,
   VERSION_RESPALDO,
 } from './dinero.constantes';
-import { ColoresCategoria, ConteoRespaldo, DatosRespaldo, FilaRespaldo, RespaldoDinero } from './dinero.models';
-import { DineroPreferenciasService } from './dinero-preferencias.service';
+import {
+  ColoresCategoria,
+  ConteoRespaldo,
+  DatosRespaldo,
+  FilaRespaldo,
+  RespaldoDinero,
+  ResultadoValidacion,
+} from './dinero.models';
 import { DineroService } from './dinero.service';
 
 // Columnas que asigna la BD a cada usuario: no se copian al importar
@@ -67,7 +74,7 @@ const REFERENCIAS: Partial<Record<TablaDinero, readonly Referencia[]>> = {
 const COLUMNAS_REQUERIDAS: Record<TablaDinero, readonly string[]> = {
   [TABLAS_DINERO.configuracion]: ['ingreso_mensual'],
   [TABLAS_DINERO.cuentas]: ['nombre', 'tipo', 'saldo_inicial'],
-  [TABLAS_DINERO.categoriasGrandes]: ['nombre', 'porcentaje', 'tipo'],
+  [TABLAS_DINERO.categoriasGrandes]: ['nombre', 'tipo'],
   [TABLAS_DINERO.subcategorias]: ['nombre', 'categoria_grande_id'],
   [TABLAS_DINERO.metasAhorro]: ['nombre', 'valor_objetivo'],
   [TABLAS_DINERO.tarjetaCortes]: ['cuenta_id', 'mes', 'monto_corte'],
@@ -88,19 +95,25 @@ function esFilaRespaldo(valor: unknown, requeridas: readonly string[]): valor is
   );
 }
 
-// Respaldo de Mi Dinero hecho con una versión que esta app ya no puede importar
+const FORMATOS_ACEPTADOS: readonly unknown[] = [FORMATO_RESPALDO, FORMATO_RESPALDO_LEGADO];
+
+// Respaldo de una versión que esta app ya no puede importar (v1, sin cuentas)
 export function esRespaldoAntiguo(valor: unknown): boolean {
   return (
     esObjeto(valor) &&
-    valor['formato'] === FORMATO_RESPALDO &&
+    FORMATOS_ACEPTADOS.includes(valor['formato']) &&
     typeof valor['version'] === 'number' &&
-    valor['version'] < VERSION_RESPALDO
+    valor['version'] < VERSION_MINIMA_RESPALDO
   );
 }
 
+// Acepta respaldos de Kane (v3) y de la versión multicuenta anterior (v2)
 export function esRespaldoDinero(valor: unknown): valor is RespaldoDinero {
-  if (!esObjeto(valor) || valor['formato'] !== FORMATO_RESPALDO) return false;
-  if (valor['version'] !== VERSION_RESPALDO) return false;
+  if (!esObjeto(valor) || !FORMATOS_ACEPTADOS.includes(valor['formato'])) return false;
+  const version = valor['version'];
+  if (typeof version !== 'number' || version < VERSION_MINIMA_RESPALDO || version > VERSION_RESPALDO) {
+    return false;
+  }
   const datos = valor['datos'];
   const preferencias = valor['preferencias'];
   return (
@@ -109,8 +122,8 @@ export function esRespaldoDinero(valor: unknown): valor is RespaldoDinero {
       const filas = datos[tabla];
       return Array.isArray(filas) && filas.every((f) => esFilaRespaldo(f, COLUMNAS_REQUERIDAS[tabla]));
     }) &&
-    esObjeto(preferencias) &&
-    esColoresCategoria(preferencias['coloresCategoria'])
+    (preferencias === undefined ||
+      (esObjeto(preferencias) && esColoresCategoria(preferencias['coloresCategoria'])))
   );
 }
 
@@ -124,47 +137,45 @@ export function contarRespaldo(respaldo: RespaldoDinero): ConteoRespaldo {
 // desde ese archivo, en esta u otra cuenta/plataforma.
 @Injectable({ providedIn: 'root' })
 export class DineroRespaldoService {
-  private readonly db = inject(SUPABASE_CLIENT);
+  private readonly db = inject(LocalDbService);
   private readonly dinero = inject(DineroService);
-  private readonly preferencias = inject(DineroPreferenciasService);
 
   // ============================================
   // EXPORTAR
   // ============================================
   async exportar(prefijoArchivo: string = PREFIJO_ARCHIVO_RESPALDO): Promise<MensajeError> {
+    const resultado = await this.construir();
+    if (!resultado.ok) return resultado.error;
+    descargarJson(`${prefijoArchivo}-${fechaHoyIso()}.json`, resultado.valor);
+    return null;
+  }
+
+  // Lee todas las tablas y arma el respaldo en memoria (lo usan el JSON y el QR)
+  async construir(): Promise<ResultadoValidacion<RespaldoDinero>> {
     const lecturas = await Promise.all(ORDEN_TABLAS_RESPALDO.map((tabla) => this.leerTabla(tabla)));
     const error = lecturas.find((l) => l.error !== null)?.error;
-    if (error) return error;
+    if (error) return { ok: false, error };
 
     const datos = Object.fromEntries(
       ORDEN_TABLAS_RESPALDO.map((tabla, i) => [tabla, lecturas[i].filas]),
     ) as DatosRespaldo;
 
-    const respaldo: RespaldoDinero = {
-      formato: FORMATO_RESPALDO,
-      version: VERSION_RESPALDO,
-      exportadoEn: new Date().toISOString(),
-      datos,
-      preferencias: { coloresCategoria: this.preferencias.coloresCategoria() },
+    return {
+      ok: true,
+      valor: { formato: FORMATO_RESPALDO, version: VERSION_RESPALDO, exportadoEn: new Date().toISOString(), datos },
     };
-    descargarJson(`${prefijoArchivo}-${fechaHoyIso()}.json`, respaldo);
-    return null;
   }
 
-  // Lee todas las filas de la tabla (RLS limita a las del usuario), paginando
-  // porque Supabase devuelve como máximo 1000 por consulta
+  // Lee todas las filas de la tabla desde IndexedDB
   private async leerTabla(tabla: TablaDinero): Promise<{ filas: FilaRespaldo[]; error: MensajeError }> {
-    const filas: FilaRespaldo[] = [];
-    for (let desde = 0; ; desde += TAMANO_PAGINA_LECTURA) {
-      const { data, error } = await this.db
-        .from(tabla)
-        .select('*')
-        .order('id', { ascending: true })
-        .range(desde, desde + TAMANO_PAGINA_LECTURA - 1)
-        .overrideTypes<FilaRespaldo[], { merge: false }>();
-      if (error) return { filas: [], error: error.message };
-      filas.push(...(data ?? []));
-      if (!data || data.length < TAMANO_PAGINA_LECTURA) return { filas, error: null };
+    try {
+      const filas = await this.db.tabla<FilaRespaldo>(tabla).toArray();
+      return { filas, error: null };
+    } catch (error) {
+      return {
+        filas: [],
+        error: error instanceof Error ? error.message : 'No se pudo leer el almacenamiento local.',
+      };
     }
   }
 
@@ -177,20 +188,17 @@ export class DineroRespaldoService {
     const errorCopia = await this.exportar(PREFIJO_ARCHIVO_SEGURIDAD);
     if (errorCopia) return `No se pudo crear la copia de seguridad previa: ${errorCopia}`;
 
-    const { datos, colores } = this.prepararDatos(respaldo);
+    const datos = this.prepararDatos(respaldo);
+    const error = await this.reemplazarTodo(datos);
 
-    const errorBorrado = await this.borrarTodo();
-    const errorInsercion = errorBorrado ?? (await this.insertarTodo(datos));
-
-    if (!errorInsercion) this.preferencias.coloresCategoria.set(colores);
     await this.dinero.cargarTodo();
-    return errorInsercion;
+    return error;
   }
 
   // Asigna ids nuevos a todas las filas y traduce las referencias entre tablas.
   // Con ids nuevos el archivo se puede importar en otra cuenta sin chocar con los
   // registros originales, que siguen existiendo en la BD con sus propios ids.
-  private prepararDatos(respaldo: RespaldoDinero): { datos: DatosRespaldo; colores: ColoresCategoria } {
+  private prepararDatos(respaldo: RespaldoDinero): DatosRespaldo {
     const ids: MapaIds = new Map(
       ORDEN_TABLAS_RESPALDO.map((tabla) => [
         tabla,
@@ -205,13 +213,21 @@ export class DineroRespaldoService {
     // Solo hay una configuración por usuario
     datos[TABLAS_DINERO.configuracion] = datos[TABLAS_DINERO.configuracion].slice(0, 1);
 
+    this.aplicarColoresLegados(datos, respaldo.preferencias?.coloresCategoria ?? {}, ids);
+    return datos;
+  }
+
+  // En respaldos v2 el color de cada categoría venía aparte (preferencias del
+  // navegador); ahora se guarda en la propia fila de la categoría
+  private aplicarColoresLegados(datos: DatosRespaldo, colores: ColoresCategoria, ids: MapaIds): void {
     const idsCategorias = ids.get(TABLAS_DINERO.categoriasGrandes);
-    const colores: ColoresCategoria = {};
-    for (const [idViejo, slot] of Object.entries(respaldo.preferencias.coloresCategoria)) {
-      const idNuevo = idsCategorias?.get(idViejo);
-      if (idNuevo) colores[idNuevo] = slot;
+    const slotPorIdNuevo = new Map(
+      Object.entries(colores).map(([idViejo, slot]) => [idsCategorias?.get(idViejo), slot]),
+    );
+    for (const fila of datos[TABLAS_DINERO.categoriasGrandes]) {
+      const slot = slotPorIdNuevo.get(fila.id);
+      if (slot && !fila['color']) fila['color'] = claveColorDeSlot(slot);
     }
-    return { datos, colores };
   }
 
   private prepararFilas(tabla: TablaDinero, filas: readonly FilaRespaldo[], ids: MapaIds): FilaRespaldo[] {
@@ -238,25 +254,24 @@ export class DineroRespaldoService {
     return resultado;
   }
 
-  // Borra de hijas a padres para respetar las llaves foráneas
-  private async borrarTodo(): Promise<MensajeError> {
-    for (const tabla of [...ORDEN_TABLAS_RESPALDO].reverse()) {
-      // Supabase exige un filtro en los DELETE; este abarca todas las filas del usuario
-      const { error } = await this.db.from(tabla).delete().not('id', 'is', null);
-      if (error) return `No se pudo vaciar ${tabla}: ${error.message}`;
+  // Reemplaza todas las tablas por los datos del respaldo dentro de una sola
+  // transacción de Dexie: si algo falla, no se pierde lo que había.
+  private async reemplazarTodo(datos: DatosRespaldo): Promise<MensajeError> {
+    const tablas = ORDEN_TABLAS_RESPALDO.map((tabla) => this.db.table(tabla));
+    try {
+      await this.db.transaction('rw', tablas, async () => {
+        // Vacía de hijas a padres y luego inserta de padres a hijas
+        for (const tabla of [...ORDEN_TABLAS_RESPALDO].reverse()) {
+          await this.db.tabla<FilaRespaldo>(tabla).clear();
+        }
+        for (const tabla of ORDEN_TABLAS_RESPALDO) {
+          const filas = datos[tabla];
+          if (filas.length > 0) await this.db.tabla<FilaRespaldo>(tabla).bulkAdd(filas);
+        }
+      });
+      return null;
+    } catch (error) {
+      return `No se pudo importar el respaldo: ${error instanceof Error ? error.message : 'error desconocido'}`;
     }
-    return null;
-  }
-
-  // Inserta de padres a hijas, en lotes para no exceder el tamaño de la petición
-  private async insertarTodo(datos: DatosRespaldo): Promise<MensajeError> {
-    for (const tabla of ORDEN_TABLAS_RESPALDO) {
-      const filas = datos[tabla];
-      for (let i = 0; i < filas.length; i += TAMANO_LOTE_ESCRITURA) {
-        const { error } = await this.db.from(tabla).insert(filas.slice(i, i + TAMANO_LOTE_ESCRITURA));
-        if (error) return `No se pudo importar ${tabla}: ${error.message}`;
-      }
-    }
-    return null;
   }
 }

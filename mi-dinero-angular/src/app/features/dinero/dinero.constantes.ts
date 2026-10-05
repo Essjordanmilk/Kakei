@@ -5,7 +5,6 @@ import { OpcionToggle, TabItem } from '../../shared/models/ui.models';
 import {
   CategoriaPredeterminada,
   CuentaPredeterminada,
-  SlotColor,
   TabDinero,
   TipoCategoria,
   TipoCuenta,
@@ -121,41 +120,49 @@ export const CUENTAS_PREDETERMINADAS: readonly CuentaPredeterminada[] = [
 ];
 
 // ---------- CATEGORÍAS ----------
-// Paleta categórica (definida en styles.css para cada tema). El orden es fijo: está
-// validado para que colores vecinos se distingan también con daltonismo.
-export const SLOTS_COLOR: readonly SlotColor[] = [1, 2, 3, 4, 5, 6, 7, 8];
-
-export function colorDeSlot(slot: SlotColor): string {
-  return `var(--serie-${slot})`;
-}
+// La paleta y las claves de color viven en shared/utils/colores.ts
+export {
+  claveColorDeSlot,
+  colorDeSlot,
+  esClaveColor,
+  resolverColor,
+  SLOTS_COLOR,
+  slotDeClaveColor,
+} from '../../shared/utils/colores';
 
 // Color para lo que no pertenece a ninguna categoría (ajustes, pagos de deuda...)
 export const COLOR_SIN_CATEGORIA = 'var(--color-texto-suave)';
 export const COLOR_INGRESO = 'var(--color-positivo)';
 export const COLOR_TRASLADO = 'var(--color-primario)';
 
-// Se cargan para usuarios nuevos. Los porcentajes de gasto suman 100 %.
+// Se cargan para usuarios nuevos (sin presupuesto: cada quien define su monto)
 export const CATEGORIAS_PREDETERMINADAS: Record<TipoCategoria, readonly CategoriaPredeterminada[]> = {
   GASTO: [
-    { nombre: 'Alimentación', porcentaje: 30, slot: 2, icono: 'alimentacion' },
-    { nombre: 'Servicios', porcentaje: 25, slot: 7, icono: 'servicios' },
-    { nombre: 'Transporte', porcentaje: 15, slot: 1, icono: 'transporte' },
-    { nombre: 'Entretenimiento', porcentaje: 20, slot: 5, icono: 'ocio' },
-    { nombre: 'Salud', porcentaje: 10, slot: 8, icono: 'salud' },
+    { nombre: 'Alimentación', slot: 2, icono: 'alimentacion' },
+    { nombre: 'Servicios', slot: 7, icono: 'servicios' },
+    { nombre: 'Transporte', slot: 1, icono: 'transporte' },
+    { nombre: 'Entretenimiento', slot: 5, icono: 'ocio' },
+    { nombre: 'Salud', slot: 8, icono: 'salud' },
   ],
   INGRESO: [
-    { nombre: 'Salario', porcentaje: 0, slot: 3, icono: 'salario' },
-    { nombre: 'Venta', porcentaje: 0, slot: 1, icono: 'categoria' },
-    { nombre: 'Regalo', porcentaje: 0, slot: 5, icono: 'categoria' },
-    { nombre: 'Otro ingreso', porcentaje: 0, slot: 4, icono: 'categoria' },
+    { nombre: 'Salario', slot: 3, icono: 'salario' },
+    { nombre: 'Venta', slot: 1, icono: 'negocio' },
+    { nombre: 'Regalo', slot: 5, icono: 'regalos' },
+    { nombre: 'Otro ingreso', slot: 4, icono: 'categoria' },
   ],
 };
+
+// ---------- GASTOS FIJOS ----------
+// Meses hacia atrás que se recuperan si la app no se abrió el día de aplicación
+export const MESES_RECUPERACION_GASTOS_FIJOS = 3;
+// Cada cuánto se revisa, con la app abierta, si hoy toca aplicar algún gasto fijo
+export const INTERVALO_REVISION_GASTOS_FIJOS_MS = 60 * 60 * 1000;
+export const DIAS_DEL_MES: readonly number[] = Array.from({ length: 31 }, (_, i) => i + 1);
 
 // Meses que muestran las gráficas comparativas del dashboard
 export const MESES_HISTORICO = 6;
 
 export const PORCENTAJE_TOTAL = 100;
-export const TOLERANCIA_PORCENTAJE = 0.5;
 export const UMBRAL_ADVERTENCIA_PRESUPUESTO = 0.8;
 export const DIAS_AVISO_VENCIMIENTO = 5;
 // Diferencias de saldo menores a esto no generan ajuste
@@ -163,13 +170,17 @@ export const DIFERENCIA_MINIMA_AJUSTE = 1;
 
 // ---------- PERSISTENCIA LOCAL Y RESPALDO ----------
 // Subir si cambia la forma de CacheDinero: los cachés viejos se descartan
-export const VERSION_CACHE = 2;
+export const VERSION_CACHE = 3;
 
-export const FORMATO_RESPALDO = 'mi-vida/dinero';
-// v2: multicuenta. Los respaldos v1 no traen cuentas y no se pueden importar.
-export const VERSION_RESPALDO = 2;
-export const PREFIJO_ARCHIVO_RESPALDO = 'mi-dinero-respaldo';
-export const PREFIJO_ARCHIVO_SEGURIDAD = 'mi-dinero-antes-de-importar';
+export const FORMATO_RESPALDO = 'kane/dinero';
+// Respaldos hechos antes de que la app se llamara Kane (siguen siendo importables)
+export const FORMATO_RESPALDO_LEGADO = 'mi-vida/dinero';
+// v3: Kane (presupuesto por monto, colores e iconos en la BD).
+// v2 (multicuenta) se sigue aceptando; v1 no trae cuentas y no se puede importar.
+export const VERSION_RESPALDO = 3;
+export const VERSION_MINIMA_RESPALDO = 2;
+export const PREFIJO_ARCHIVO_RESPALDO = 'kane-respaldo';
+export const PREFIJO_ARCHIVO_SEGURIDAD = 'kane-antes-de-importar';
 
 // Supabase devuelve como máximo 1000 filas por consulta
 export const TAMANO_PAGINA_LECTURA = 1000;

@@ -1,10 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { NotificacionService } from '../../../../core/notificacion.service';
-import { mesActual } from '../../../../core/utils';
 import { AccionesFilaComponent } from '../../../../shared/components/acciones-fila/acciones-fila.component';
-import { CampoMesComponent } from '../../../../shared/components/campo-mes/campo-mes.component';
+import {
+  FiltroPeriodoComponent,
+  periodoDelMes,
+} from '../../../../shared/components/filtro-periodo/filtro-periodo.component';
 import { ICONOS } from '../../../../shared/iconos';
+import { PeriodoFechas } from '../../../../shared/models/ui.models';
 import { FechaCortaPipe } from '../../../../shared/pipes/fecha-corta.pipe';
 import { MonedaPipe } from '../../../../shared/pipes/moneda.pipe';
 import { ControlModal } from '../../../../shared/utils/control-modal';
@@ -25,7 +28,7 @@ interface TotalesMes {
   selector: 'app-movimientos-tab',
   imports: [
     FaIconComponent,
-    CampoMesComponent,
+    FiltroPeriodoComponent,
     AccionesFilaComponent,
     MontoMovimientoComponent,
     ModalMovimientoComponent,
@@ -40,25 +43,27 @@ export class MovimientosTabComponent {
 
   protected readonly iconos = ICONOS;
   protected readonly tipos = TIPOS_MOVIMIENTO;
-  protected readonly filtroMes = signal<string>(mesActual());
+  protected readonly periodo = signal<PeriodoFechas>(periodoDelMes());
   // null = todos los tipos
   protected readonly filtroTipo = signal<TipoMovimiento | null>(null);
   protected readonly modal = new ControlModal<Transaccion>();
 
-  private readonly movimientosDelMes = computed<Transaccion[]>(() =>
-    this.service.movimientosDeMes(this.filtroMes() || mesActual()),
-  );
+  // Mientras se elige el rango (sin fecha final) se muestra solo el día inicial
+  private readonly movimientosDelPeriodo = computed<Transaccion[]>(() => {
+    const { desde, hasta } = this.periodo();
+    return this.service.movimientosEntre(desde, hasta || desde);
+  });
 
   protected readonly movimientosFiltrados = computed<Transaccion[]>(() => {
     const tipo = this.filtroTipo();
-    const movimientos = this.movimientosDelMes();
+    const movimientos = this.movimientosDelPeriodo();
     return tipo ? movimientos.filter((m) => m.tipo === tipo) : movimientos;
   });
 
   protected readonly totales = computed<TotalesMes>(() => ({
-    ingresos: sumarMontos(this.movimientosDelMes(), 'INGRESO'),
-    gastos: sumarMontos(this.movimientosDelMes(), 'GASTO'),
-    traslados: sumarMontos(this.movimientosDelMes(), 'TRASLADO'),
+    ingresos: sumarMontos(this.movimientosDelPeriodo(), 'INGRESO'),
+    gastos: sumarMontos(this.movimientosDelPeriodo(), 'GASTO'),
+    traslados: sumarMontos(this.movimientosDelPeriodo(), 'TRASLADO'),
   }));
 
   protected alternarFiltro(tipo: TipoMovimiento): void {
@@ -66,9 +71,8 @@ export class MovimientosTabComponent {
   }
 
   protected async eliminar(movimiento: Transaccion): Promise<void> {
-    if (!this.notificacion.confirmar('¿Eliminar esta transacción? El saldo de sus cuentas se recalcula.')) {
-      return;
-    }
+    const mensaje = 'Se eliminará esta transacción y el saldo de sus cuentas se recalculará.';
+    if (!(await this.notificacion.confirmarEliminacion(mensaje, 'Eliminar transacción'))) return;
     const error = await this.service.eliminarTransaccion(movimiento.id);
     if (error) this.notificacion.error(error);
   }

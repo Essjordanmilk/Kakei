@@ -48,7 +48,8 @@ export class CuentaCardComponent {
   );
 
   protected async eliminar(): Promise<void> {
-    if (!this.notificacion.confirmar(`¿Eliminar la cuenta "${this.cuenta().nombre}"?`)) return;
+    const mensaje = `Se eliminará la cuenta "${this.cuenta().nombre}". Solo es posible si no tiene movimientos.`;
+    if (!(await this.notificacion.confirmarEliminacion(mensaje, 'Eliminar cuenta'))) return;
     const error = await this.service.eliminarCuenta(this.cuenta().id);
     if (error) this.notificacion.error(error);
   }

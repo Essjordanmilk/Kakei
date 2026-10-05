@@ -1,0 +1,16 @@
+<mat-form-field [style.--color-categoria]="colorCategoria()">
+  <mat-label>{{ etiqueta() }}</mat-label>
+  @if (icono(); as icono) {
+    <fa-icon matIconPrefix class="icono-prefijo" [icon]="icono" />
+  }
+  <span matTextPrefix class="monto-prefijo">{{ simbolo() }}&nbsp;</span>
+  <input matInput type="text" inputmode="decimal" autocomplete="off" [value]="texto()"
+    [placeholder]="placeholder()" [errorStateMatcher]="matcher"
+    (input)="alEscribir($event)" (blur)="alSalir()" />
+  @if (error()) {
+    <mat-error>{{ error() }}</mat-error>
+  }
+  @if (ayuda()) {
+    <mat-hint>{{ ayuda() }}</mat-hint>
+  }
+</mat-form-field>

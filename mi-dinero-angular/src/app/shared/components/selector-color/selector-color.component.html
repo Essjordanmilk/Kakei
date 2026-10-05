@@ -1,0 +1,21 @@
+<fieldset class="campo">
+  <legend class="campo-etiqueta">{{ etiqueta() }}</legend>
+  <div class="selector-color" role="radiogroup" [attr.aria-label]="etiqueta()">
+    @for (muestra of muestras; track muestra.clave) {
+      <button type="button" class="muestra-color" role="radio" [style.--color-muestra]="muestra.css"
+        [attr.aria-checked]="valor() === muestra.clave" [attr.aria-label]="muestra.etiqueta"
+        (click)="valor.set(muestra.clave)"></button>
+    }
+
+    @if (permitirPersonalizado()) {
+      <!-- El input nativo de color abre el color picker del sistema -->
+      <label class="muestra-color muestra-libre" role="radio" [style.--color-muestra]="colorLibre()"
+        [attr.aria-checked]="esPersonalizado()" title="Elegir otro color">
+        <fa-icon [icon]="iconos.color" aria-hidden="true" />
+        <span class="sr-only">Color personalizado</span>
+        <input type="color" class="sr-only" [value]="colorLibre()" #picker
+          (input)="elegirLibre(picker.value)" />
+      </label>
+    }
+  </div>
+</fieldset>

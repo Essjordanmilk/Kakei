@@ -7,12 +7,10 @@ import { ControlModal } from '../../../../shared/utils/control-modal';
 import { CategoriaPresupuestoCardComponent } from '../../components/categoria-presupuesto-card/categoria-presupuesto-card.component';
 import { MetaAhorroCardComponent } from '../../components/meta-ahorro-card/meta-ahorro-card.component';
 import { ModalCategoriaComponent } from '../../components/modal-categoria/modal-categoria.component';
-import { ModalConfiguracionComponent } from '../../components/modal-configuracion/modal-configuracion.component';
+import { ModalPresupuestosComponent } from '../../components/modal-presupuestos/modal-presupuestos.component';
 import { ModalMetaComponent } from '../../components/modal-meta/modal-meta.component';
 import { ModalSubcategoriaComponent } from '../../components/modal-subcategoria/modal-subcategoria.component';
-import { avisoSumaPorcentajes } from '../../dinero.calculos';
 import {
-  AvisoSuma,
   CategoriaGrande,
   CategoriaPredeterminada,
   MetaAhorro,
@@ -27,7 +25,7 @@ import { DineroService } from '../../dinero.service';
     StatCardComponent,
     CategoriaPresupuestoCardComponent,
     MetaAhorroCardComponent,
-    ModalConfiguracionComponent,
+    ModalPresupuestosComponent,
     ModalCategoriaComponent,
     ModalSubcategoriaComponent,
     ModalMetaComponent,
@@ -42,15 +40,16 @@ export class PresupuestoTabComponent {
   protected readonly iconos = ICONOS;
   protected readonly creandoSugeridas = signal(false);
 
-  protected readonly modalConfiguracionAbierto = signal(false);
+  protected readonly modalPresupuestosAbierto = signal(false);
   protected readonly modalCategoria = new ControlModal<CategoriaGrande>();
   protected readonly modalCategoriaIngreso = new ControlModal<CategoriaGrande>();
   protected readonly modalSubcategoria = new ControlModal<CategoriaGrande>();
   protected readonly modalMeta = new ControlModal<MetaAhorro>();
 
-  protected readonly avisoPorcentajes = computed<AvisoSuma>(() =>
-    avisoSumaPorcentajes(this.service.totalPorcentajes()),
-  );
+  protected readonly presupuestoExcedido = computed<boolean>(() => {
+    const total = this.service.presupuestoTotal();
+    return total > 0 && this.service.gastosMes() > total;
+  });
 
   protected readonly sugeridas = computed<CategoriaPredeterminada[]>(
     () => this.service.categoriasSugeridasFaltantes().GASTO,
@@ -74,7 +73,8 @@ export class PresupuestoTabComponent {
   }
 
   protected async eliminarCategoriaIngreso(categoria: CategoriaGrande): Promise<void> {
-    if (!this.notificacion.confirmar(`¿Eliminar la categoría de ingreso "${categoria.nombre}"?`)) return;
+    const mensaje = `Se eliminará la categoría de ingreso "${categoria.nombre}". Sus movimientos no se borran.`;
+    if (!(await this.notificacion.confirmarEliminacion(mensaje, 'Eliminar categoría'))) return;
     const error = await this.service.eliminarCategoriaGrande(categoria.id);
     if (error) this.notificacion.error(error);
   }

@@ -1,22 +1,32 @@
-import { Component, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
+import { Component, computed, inject, input, linkedSignal, output, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { NotificacionService } from '../../../../core/notificacion.service';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
+import { SelectorColorComponent } from '../../../../shared/components/selector-color/selector-color.component';
+import { SelectorIconoComponent } from '../../../../shared/components/selector-icono/selector-icono.component';
+import { ICONOS, NombreIcono } from '../../../../shared/iconos';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
+import { firmaFormulario } from '../../../../shared/utils/formulario';
 import { categoriaPredeterminadaDe } from '../../dinero.calculos';
-import { colorDeSlot, SLOTS_COLOR } from '../../dinero.constantes';
-import { CategoriaGrande, CategoriaGrandePayload, SlotColor, TipoCategoria } from '../../dinero.models';
+import { claveColorDeSlot, resolverColor, SLOTS_COLOR } from '../../dinero.constantes';
+import { CategoriaGrande, CategoriaGrandePayload, TipoCategoria } from '../../dinero.models';
 import { DineroService } from '../../dinero.service';
 
-interface OpcionColor {
-  slot: SlotColor;
-  color: string;
-}
-
+// Crea o edita una categoría: nombre, presupuesto mensual (solo gastos), color e icono
 @Component({
   selector: 'app-modal-categoria',
-  imports: [FormsModule, FaIconComponent, ModalComponent],
+  imports: [
+    FormsModule,
+    ...MATERIAL_FORMULARIOS,
+    FaIconComponent,
+    CampoMontoComponent,
+    ModalComponent,
+    SelectorColorComponent,
+    SelectorIconoComponent,
+  ],
   templateUrl: './modal-categoria.component.html',
   styleUrl: './modal-categoria.component.css',
 })
@@ -33,43 +43,56 @@ export class ModalCategoriaComponent {
   // Se cierra a través del modal para que se vea la animación de salida
   private readonly modal = viewChild.required(ModalComponent);
 
-  protected readonly opcionesColor: readonly OpcionColor[] = SLOTS_COLOR.map((slot) => ({
-    slot,
-    color: colorDeSlot(slot),
-  }));
-
   protected readonly nombre = linkedSignal<string>(() => this.categoria()?.nombre ?? '');
-  protected readonly porcentaje = linkedSignal<number | null>(() => this.categoria()?.porcentaje ?? 0);
-
-  // null = el usuario no eligió color: se usa el sugerido
-  private readonly slotElegido = signal<SlotColor | null>(null);
-
-  // Una categoría nueva toma el color de la sugerida con su nombre o el siguiente libre de la paleta
-  protected readonly slot = computed<SlotColor>(() => {
-    const elegido = this.slotElegido();
-    if (elegido) return elegido;
+  protected readonly presupuesto = linkedSignal<number | null>(
+    () => this.categoria()?.presupuesto_mensual ?? null,
+  );
+  // Una categoría nueva arranca con el siguiente color de la paleta y un icono genérico
+  protected readonly color = linkedSignal<string>(() => {
     const existente = this.categoria();
-    if (existente) return this.service.slotDeCategoria(existente.id);
-    return (
-      categoriaPredeterminadaDe(this.nombre())?.slot ??
-      SLOTS_COLOR[this.service.categoriasGrandes().length % SLOTS_COLOR.length]
-    );
+    if (existente) return this.service.claveColorDeCategoria(existente.id);
+    return claveColorDeSlot(SLOTS_COLOR[this.service.categoriasGrandes().length % SLOTS_COLOR.length]);
+  });
+  protected readonly icono = linkedSignal<NombreIcono>(() => {
+    const existente = this.categoria();
+    return existente ? this.service.nombreIconoDeCategoria(existente) : 'categoria';
   });
 
-  protected readonly icono = computed<IconDefinition>(() => this.service.iconoDeCategoria(this.nombre()));
-  protected readonly colorActual = computed<string>(() => colorDeSlot(this.slot()));
-
   protected readonly tipo = computed<TipoCategoria>(() => this.categoria()?.tipo ?? this.tipoNueva());
-  // Las categorías de ingreso no reparten presupuesto
-  protected readonly conPorcentaje = computed<boolean>(() => this.tipo() === 'GASTO');
+  // Las categorías de ingreso no tienen presupuesto
+  protected readonly conPresupuesto = computed<boolean>(() => this.tipo() === 'GASTO');
+
+  protected readonly colorCss = computed<string>(() => resolverColor(this.color()) ?? 'var(--color-primario)');
+  protected readonly iconoVista = computed<IconDefinition>(() => ICONOS[this.icono()]);
 
   protected readonly titulo = computed<string>(() => {
     const accion = this.categoria() ? 'Editar' : 'Nueva';
     return `${accion} categoría de ${this.tipo() === 'GASTO' ? 'gasto' : 'ingreso'}`;
   });
 
-  protected elegirColor(slot: SlotColor): void {
-    this.slotElegido.set(slot);
+  private readonly borrador = computed(() => ({
+    nombre: this.nombre(),
+    presupuesto: this.presupuesto(),
+    color: this.color(),
+    icono: this.icono(),
+  }));
+  private readonly borradorInicial = linkedSignal({
+    source: () => this.categoria(),
+    computation: () => firmaFormulario(this.borrador()),
+  });
+  protected readonly hayCambios = computed(
+    () => firmaFormulario(this.borrador()) !== this.borradorInicial(),
+  );
+
+  // Al escribir el nombre de una categoría sugerida (p. ej. "Salud") se proponen su color e icono
+  protected cambiarNombre(nombre: string): void {
+    this.nombre.set(nombre);
+    if (this.categoria()) return;
+    const sugerida = categoriaPredeterminadaDe(nombre);
+    if (sugerida) {
+      this.color.set(claveColorDeSlot(sugerida.slot));
+      this.icono.set(sugerida.icono);
+    }
   }
 
   protected async guardar(): Promise<void> {
@@ -78,20 +101,22 @@ export class ModalCategoriaComponent {
       this.notificacion.informar('Escribe un nombre');
       return;
     }
+    const presupuesto = this.conPresupuesto() ? Math.max(Number(this.presupuesto()) || 0, 0) : 0;
 
     const existente = this.categoria();
-    const porcentaje = this.conPorcentaje() ? this.porcentaje() || 0 : 0;
+    const base: CategoriaGrandePayload = {
+      nombre,
+      presupuesto_mensual: presupuesto,
+      color: this.color(),
+      icono: this.icono(),
+    };
     const payload: CategoriaGrandePayload = existente
-      ? { nombre, porcentaje }
-      : { nombre, porcentaje, tipo: this.tipo(), orden: this.service.categoriasGrandes().length + 1 };
+      ? base
+      : { ...base, tipo: this.tipo(), orden: this.service.categoriasGrandes().length + 1 };
 
-    const error = await this.service.guardarCategoriaGrande(
-      payload,
-      existente?.id,
-      this.slotElegido() ?? undefined,
-    );
+    const error = await this.service.guardarCategoriaGrande(payload, existente?.id);
     if (error) {
-      this.notificacion.error(error);
+      void this.notificacion.error(error);
       return;
     }
     this.modal().cerrarAnimado();

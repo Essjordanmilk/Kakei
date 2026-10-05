@@ -34,7 +34,8 @@ export class DeudaCardComponent {
   );
 
   protected async eliminar(): Promise<void> {
-    if (!this.notificacion.confirmar('¿Eliminar esta deuda?')) return;
+    const mensaje = `Se eliminará "${this.deuda().nombre}". Los pagos ya registrados no se borran.`;
+    if (!(await this.notificacion.confirmarEliminacion(mensaje, 'Eliminar deuda'))) return;
     const error = await this.service.eliminarDeuda(this.deuda().id);
     if (error) this.notificacion.error(error);
   }

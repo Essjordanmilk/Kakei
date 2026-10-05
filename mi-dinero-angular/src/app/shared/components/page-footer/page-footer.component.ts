@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { NOMBRE_APP } from '../../../core/constantes';
+import { ESLOGAN_APP, NOMBRE_APP } from '../../../core/constantes';
 
 @Component({
   selector: 'app-page-footer',
@@ -8,5 +8,6 @@ import { NOMBRE_APP } from '../../../core/constantes';
 })
 export class PageFooterComponent {
   protected readonly nombreApp = NOMBRE_APP;
+  protected readonly eslogan = ESLOGAN_APP;
   protected readonly anio = new Date().getFullYear();
 }

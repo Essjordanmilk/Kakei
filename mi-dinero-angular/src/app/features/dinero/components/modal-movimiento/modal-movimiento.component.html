@@ -1,11 +1,8 @@
-<app-modal [titulo]="titulo()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
+<app-modal [titulo]="titulo()" [hayCambios]="hayCambios()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
   <app-toggle-opciones etiqueta="Tipo" [opciones]="tiposMovimiento" [valor]="tipo()"
     (valorChange)="cambiarTipo($event)" />
 
-  <label class="campo">
-    <span class="campo-etiqueta">Monto</span>
-    <input type="number" [(ngModel)]="monto" min="0" step="1" placeholder="0" inputmode="numeric" />
-  </label>
+  <app-campo-monto etiqueta="Monto" [(valor)]="monto" />
 
   <div class="cuentas-transaccion" [class.con-traslado]="pideOrigen() && pideDestino()">
     @if (pideOrigen()) {
@@ -32,8 +29,8 @@
 
   <app-campo-fecha etiqueta="Fecha" [(valor)]="fecha" />
 
-  <label class="campo">
-    <span class="campo-etiqueta">Descripción (opcional)</span>
-    <input type="text" [(ngModel)]="descripcion" placeholder="Ej: Mercado del mes" />
-  </label>
+  <mat-form-field>
+    <mat-label>Descripción (opcional)</mat-label>
+    <input matInput type="text" [(ngModel)]="descripcion" placeholder="Ej: Mercado del mes" />
+  </mat-form-field>
 </app-modal>

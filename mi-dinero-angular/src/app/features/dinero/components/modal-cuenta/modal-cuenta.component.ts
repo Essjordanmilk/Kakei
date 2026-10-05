@@ -1,17 +1,16 @@
 import { Component, computed, inject, input, linkedSignal, output, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NotificacionService } from '../../../../core/notificacion.service';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
+import { firmaFormulario } from '../../../../shared/utils/formulario';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
+import { SelectorColorComponent } from '../../../../shared/components/selector-color/selector-color.component';
 import { ToggleOpcionesComponent } from '../../../../shared/components/toggle-opciones/toggle-opciones.component';
 import { deudaDeCredito } from '../../dinero.calculos';
-import { colorDeSlot, SLOTS_COLOR, TIPOS_CUENTA } from '../../dinero.constantes';
+import { claveColorDeSlot, SLOTS_COLOR, slotDeClaveColor, TIPOS_CUENTA } from '../../dinero.constantes';
 import { CuentaConSaldo, CuentaPayload, SlotColor, TipoCuenta } from '../../dinero.models';
 import { DineroService } from '../../dinero.service';
-
-interface OpcionColor {
-  slot: SlotColor;
-  color: string;
-}
 
 const DIA_MINIMO = 1;
 const DIA_MAXIMO = 31;
@@ -24,7 +23,7 @@ function diaValido(dia: number | null): number | null {
 // en crédito) y el servicio calcula el saldo inicial que lo produce.
 @Component({
   selector: 'app-modal-cuenta',
-  imports: [FormsModule, ModalComponent, ToggleOpcionesComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, CampoMontoComponent, ModalComponent, SelectorColorComponent, ToggleOpcionesComponent],
   templateUrl: './modal-cuenta.component.html',
 })
 export class ModalCuentaComponent {
@@ -39,10 +38,6 @@ export class ModalCuentaComponent {
   private readonly modal = viewChild.required(ModalComponent);
 
   protected readonly tiposCuenta = TIPOS_CUENTA;
-  protected readonly opcionesColor: readonly OpcionColor[] = SLOTS_COLOR.map((slot) => ({
-    slot,
-    color: colorDeSlot(slot),
-  }));
 
   protected readonly nombre = linkedSignal<string>(() => this.cuenta()?.nombre ?? '');
   protected readonly tipo = linkedSignal<TipoCuenta>(() => this.cuenta()?.tipo ?? 'debito');
@@ -59,7 +54,30 @@ export class ModalCuentaComponent {
   protected readonly diaLimite = linkedSignal<number | null>(() => this.cuenta()?.dia_limite_pago ?? null);
 
   protected readonly esCredito = computed<boolean>(() => this.tipo() === 'credito');
+  // La columna `color` de cuentas guarda la posición en la paleta (1-8)
+  protected readonly claveColor = computed<string>(() => claveColorDeSlot(this.slot()));
+
+  protected cambiarColor(clave: string): void {
+    const slot = slotDeClaveColor(clave);
+    if (slot) this.slot.set(slot);
+  }
   protected readonly titulo = computed<string>(() => `${this.cuenta() ? 'Editar' : 'Nueva'} cuenta`);
+
+  private readonly borrador = computed(() => ({
+    nombre: this.nombre(),
+    tipo: this.tipo(),
+    color: this.claveColor(),
+    cifra: this.cifra(),
+    diaCorte: this.diaCorte(),
+    diaLimite: this.diaLimite(),
+  }));
+  private readonly borradorInicial = linkedSignal({
+    source: () => this.cuenta(),
+    computation: () => firmaFormulario(this.borrador()),
+  });
+  protected readonly hayCambios = computed(
+    () => firmaFormulario(this.borrador()) !== this.borradorInicial(),
+  );
 
   protected async guardar(): Promise<void> {
     const nombre = this.nombre().trim();

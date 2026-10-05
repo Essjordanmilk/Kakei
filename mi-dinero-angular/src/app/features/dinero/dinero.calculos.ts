@@ -17,12 +17,12 @@ import {
   CATEGORIAS_PREDETERMINADAS,
   CUENTAS_POR_TIPO,
   DIAS_AVISO_VENCIMIENTO,
+  MESES_RECUPERACION_GASTOS_FIJOS,
   PORCENTAJE_TOTAL,
-  TOLERANCIA_PORCENTAJE,
   UMBRAL_ADVERTENCIA_PRESUPUESTO,
 } from './dinero.constantes';
 import {
-  AvisoSuma,
+  AplicacionGastoFijo,
   BorradorTransaccion,
   CategoriaPredeterminada,
   CorteTarjeta,
@@ -31,6 +31,7 @@ import {
   Deuda,
   EstadoPresupuesto,
   GastoCategoria,
+  GastoFijo,
   InfoDeudaNormal,
   InfoMeta,
   InfoTarjeta,
@@ -295,14 +296,45 @@ export function estadoPresupuesto(gastado: number, presupuesto: number): EstadoP
   return { estado: 'ok', alerta: '' };
 }
 
-export function sumaPorcentajesCorrecta(suma: number): boolean {
-  return Math.abs(suma - PORCENTAJE_TOTAL) <= TOLERANCIA_PORCENTAJE;
+
+
+// ---------- GASTOS FIJOS ----------
+// Ocurrencias de gastos fijos automáticos que ya llegaron y aún no tienen registro.
+// Revisa el mes actual y los MESES_RECUPERACION_GASTOS_FIJOS - 1 anteriores (por si
+// la app no se abrió ese día), sin ir antes de `aplicar_desde`. El día 31 en un mes
+// de 30 días se aplica el último día del mes.
+// `registrados` contiene las claves "gastoId|YYYY-MM" que ya tienen pago u omisión.
+export function aplicacionesPendientes(
+  gastos: readonly GastoFijo[],
+  registrados: ReadonlySet<string>,
+  hoy: Date = new Date(),
+): AplicacionGastoFijo[] {
+  const hoyIso = fechaIsoLocal(hoy);
+  const pendientes: AplicacionGastoFijo[] = [];
+  for (let atras = MESES_RECUPERACION_GASTOS_FIJOS - 1; atras >= 0; atras--) {
+    const mes = mesRelativo(hoy, -atras);
+    const claveDelMes = claveMes(mes);
+    for (const gasto of gastos) {
+      if (!gasto.activo || !gasto.dia_aplicacion) continue;
+      const fecha = fechaIsoLocal(fechaConDia(mes.getFullYear(), mes.getMonth(), gasto.dia_aplicacion));
+      if (fecha > hoyIso || fecha < gasto.aplicar_desde) continue;
+      if (registrados.has(claveRegistroGastoFijo(gasto.id, claveDelMes))) continue;
+      pendientes.push({ gasto, mes: claveDelMes, fecha });
+    }
+  }
+  return pendientes;
 }
 
-export function avisoSumaPorcentajes(suma: number): AvisoSuma {
-  return sumaPorcentajesCorrecta(suma)
-    ? { texto: '✓ Los porcentajes suman 100%', correcta: true }
-    : { texto: `⚠ Los porcentajes suman ${suma}% (deben sumar 100%)`, correcta: false };
+export function claveRegistroGastoFijo(gastoFijoId: string, mes: string): string {
+  return `${gastoFijoId}|${mes}`;
+}
+
+// Próxima fecha en que se aplicará el gasto (YYYY-MM-DD), o null si es manual
+export function proximaAplicacion(gasto: GastoFijo, yaAplicadoEsteMes: boolean, hoy: Date = new Date()): string | null {
+  if (!gasto.dia_aplicacion) return null;
+  const esteMes = fechaIsoLocal(fechaConDia(hoy.getFullYear(), hoy.getMonth(), gasto.dia_aplicacion));
+  if (!yaAplicadoEsteMes && esteMes >= fechaIsoLocal(hoy)) return esteMes;
+  return fechaIsoLocal(fechaConDia(hoy.getFullYear(), hoy.getMonth() + 1, gasto.dia_aplicacion));
 }
 
 // ---------- CATEGORÍAS ----------

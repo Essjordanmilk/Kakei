@@ -1,12 +1,12 @@
-import { Component, inject, input } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { AuthService } from '../../../core/auth.service';
-import { RUTAS } from '../../../core/constantes';
+import { LOGO_APP, NOMBRE_APP, RUTAS } from '../../../core/constantes';
 import { ICONOS } from '../../iconos';
 import { BotonTemaComponent } from '../boton-tema/boton-tema.component';
 
-// Barra superior de los módulos: volver al inicio, título, acciones proyectadas,
+// Barra superior: marca Kane (vuelve al dashboard), acciones proyectadas,
 // interruptor de tema y cerrar sesión
 @Component({
   selector: 'app-page-header',
@@ -17,9 +17,9 @@ import { BotonTemaComponent } from '../boton-tema/boton-tema.component';
 export class PageHeaderComponent {
   private readonly auth = inject(AuthService);
 
-  readonly titulo = input.required<string>();
-
   protected readonly rutaInicio = RUTAS.inicio;
+  protected readonly nombreApp = NOMBRE_APP;
+  protected readonly logo = LOGO_APP;
   protected readonly iconos = ICONOS;
 
   protected async salir(): Promise<void> {

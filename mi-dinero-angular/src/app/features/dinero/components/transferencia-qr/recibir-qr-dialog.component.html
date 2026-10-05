@@ -1,0 +1,37 @@
+<h2 mat-dialog-title>Recibir datos por QR</h2>
+
+<mat-dialog-content>
+  <ol class="pasos-qr">
+    <li>En el computador abre Kane y ve a <strong>Respaldo → Enviar por QR</strong>.</li>
+    <li>Apunta la cámara a la pantalla y mantenla quieta hasta completar todas las partes.</li>
+  </ol>
+
+  <figure class="marco-qr">
+    <video #video class="video-qr" playsinline muted aria-label="Vista de la cámara"></video>
+    <figcaption aria-live="polite">
+      @switch (estado()) {
+        @case ('iniciando') {
+          Abriendo la cámara…
+        }
+        @case ('escaneando') {
+          @if (esperados() > 0) {
+            Recibidas {{ recibidos() }} de {{ esperados() }} partes
+          } @else {
+            Buscando el código QR…
+          }
+        }
+        @case ('procesando') {
+          Reconstruyendo tus datos…
+        }
+        @case ('error') {
+          <span class="estado-qr error" role="alert">{{ mensajeError() }}</span>
+        }
+      }
+      <mat-progress-bar [mode]="estado() === 'procesando' ? 'indeterminate' : 'determinate'" [value]="progreso()" />
+    </figcaption>
+  </figure>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button matButton type="button" mat-dialog-close>Cancelar</button>
+</mat-dialog-actions>

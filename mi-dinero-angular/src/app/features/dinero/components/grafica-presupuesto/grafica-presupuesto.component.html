@@ -7,7 +7,7 @@
   </header>
 
   <p class="fila-detalle mb-12">
-    Ingreso mensual: <strong>{{ service.configuracion().ingreso_mensual | moneda }}</strong>
+    Presupuesto total del mes: <strong>{{ service.presupuestoTotal() | moneda }}</strong>
   </p>
 
   @if (filas().length === 0) {

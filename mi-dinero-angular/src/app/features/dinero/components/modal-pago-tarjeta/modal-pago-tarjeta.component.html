@@ -1,4 +1,4 @@
-<app-modal [titulo]="titulo()" textoConfirmar="Confirmar pago" (cerrar)="cerrar.emit()" (confirmar)="confirmar()">
+<app-modal [titulo]="titulo()" textoConfirmar="Confirmar pago" [hayCambios]="hayCambios()" (cerrar)="cerrar.emit()" (confirmar)="confirmar()">
   <p class="fila-detalle mb-14">
     Deuda actual: <strong>{{ deuda() | moneda }}</strong>
     @if (montoCorte() > 0) {
@@ -6,10 +6,7 @@
     }
   </p>
 
-  <label class="campo">
-    <span class="campo-etiqueta">Monto a pagar</span>
-    <input type="number" [(ngModel)]="monto" min="0" placeholder="0" inputmode="numeric" />
-  </label>
+  <app-campo-monto etiqueta="Monto a pagar" [(valor)]="monto" />
 
   <app-selector-cuenta etiqueta="Pagar desde" [excluir]="tarjeta().id" [(valor)]="cuentaOrigenId" />
 

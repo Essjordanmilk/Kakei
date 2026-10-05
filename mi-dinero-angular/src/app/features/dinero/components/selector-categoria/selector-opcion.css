@@ -1,0 +1,21 @@
+/* Compartido por los selectores de cuenta y de categoría: icono del color de la opción */
+:host {
+  display: block;
+}
+
+.opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.opcion-icono {
+  width: 1rem;
+  color: var(--color-categoria);
+}
+
+.opcion-detalle {
+  font-size: 0.75rem;
+  color: var(--color-texto-suave);
+}

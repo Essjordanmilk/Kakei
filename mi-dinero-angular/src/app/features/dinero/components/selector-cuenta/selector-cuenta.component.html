@@ -1,14 +1,26 @@
-<div class="campo">
-  <label class="campo-etiqueta" [for]="idCampo">{{ etiqueta() }}</label>
-  <select [id]="idCampo" [ngModel]="valor()" (ngModelChange)="valor.set($event || null)">
-    <option [ngValue]="null" disabled>Elige una cuenta</option>
-    @for (opcion of opciones(); track opcion.valor) {
-      <option [ngValue]="opcion.valor">{{ opcion.etiqueta }}</option>
+<mat-form-field>
+  <mat-label>{{ etiqueta() }}</mat-label>
+  <mat-select [value]="valor()" (selectionChange)="cambiar($event)" panelClass="panel-selector">
+    <mat-select-trigger>
+      @if (elegida(); as cuenta) {
+        <span class="opcion" [style.--color-categoria]="cuenta.color">
+          <fa-icon class="opcion-icono" [icon]="cuenta.icono" />{{ cuenta.nombre }}
+        </span>
+      }
+    </mat-select-trigger>
+    @for (opcion of opciones(); track opcion.id) {
+      <mat-option [value]="opcion.id">
+        <span class="opcion" [style.--color-categoria]="opcion.color">
+          <fa-icon class="opcion-icono" [icon]="opcion.icono" />
+          {{ opcion.nombre }}
+          <span class="opcion-detalle">{{ opcion.tipo }}</span>
+        </span>
+      </mat-option>
     } @empty {
-      <option [ngValue]="null" disabled>No hay cuentas: créalas en la pestaña Cuentas</option>
+      <mat-option disabled>No hay cuentas: créalas en la pestaña Cuentas</mat-option>
     }
-  </select>
+  </mat-select>
   @if (saldoElegida() !== null) {
-    <span class="hint">Saldo actual: {{ saldoElegida() | moneda }}</span>
+    <mat-hint>Saldo actual: {{ saldoElegida() | moneda }}</mat-hint>
   }
-</div>
+</mat-form-field>

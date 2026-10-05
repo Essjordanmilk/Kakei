@@ -34,7 +34,7 @@
   <app-grafica-flujo />
   <app-grafica-balance />
   <app-grafica-categorias />
-  <app-grafica-presupuesto (configurar)="modalConfiguracionAbierto.set(true)" />
+  <app-grafica-presupuesto (configurar)="modalPresupuestosAbierto.set(true)" />
 </section>
 
 <section class="rejilla-dashboard" aria-label="Detalle del mes">
@@ -107,8 +107,8 @@
 @if (modalAjusteAbierto()) {
   <app-modal-ajuste-saldo (cerrar)="modalAjusteAbierto.set(false)" />
 }
-@if (modalConfiguracionAbierto()) {
-  <app-modal-configuracion (cerrar)="modalConfiguracionAbierto.set(false)" />
+@if (modalPresupuestosAbierto()) {
+  <app-modal-presupuestos (cerrar)="modalPresupuestosAbierto.set(false)" />
 }
 @if (modalMeta.abierto()) {
   <app-modal-meta [meta]="modalMeta.entidad()" (cerrar)="modalMeta.cerrar()" />

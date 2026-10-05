@@ -32,6 +32,7 @@ export class AuthService {
   async iniciarSesion(email: string, password: string): Promise<MensajeError> {
     const { error } = await this.db.auth.signInWithPassword({ email, password });
     if (error) return traducirErrorLogin(error.message);
+    // Tras iniciar sesión se entra directo al dashboard (no hay pantalla intermedia)
     await this.router.navigateByUrl(RUTAS.inicio);
     return null;
   }

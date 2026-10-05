@@ -1,15 +1,25 @@
-<div class="campo">
-  <label class="campo-etiqueta" [for]="idCampo">{{ etiqueta() }}</label>
-  <select [id]="idCampo" [ngModel]="valorCodificado()" (ngModelChange)="cambiar($event)">
-    <option value="" disabled>Elige una categoría</option>
-    @for (grupo of grupos(); track grupo.categoria.id) {
-      <optgroup [label]="grupo.categoria.nombre">
+<mat-form-field>
+  <mat-label>{{ etiqueta() }}</mat-label>
+  <mat-select [value]="valorCodificado()" (selectionChange)="cambiar($event)" panelClass="panel-selector">
+    <mat-select-trigger>
+      @if (grupoElegido(); as grupo) {
+        <span class="opcion" [style.--color-categoria]="grupo.color">
+          <fa-icon class="opcion-icono" [icon]="grupo.icono" />{{ etiquetaElegida() }}
+        </span>
+      }
+    </mat-select-trigger>
+    @for (grupo of grupos(); track grupo.id) {
+      <mat-optgroup [label]="grupo.nombre">
         @for (opcion of grupo.opciones; track opcion.valor) {
-          <option [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+          <mat-option [value]="opcion.valor">
+            <span class="opcion" [style.--color-categoria]="grupo.color">
+              <fa-icon class="opcion-icono" [icon]="grupo.icono" />{{ opcion.etiqueta }}
+            </span>
+          </mat-option>
         }
-      </optgroup>
+      </mat-optgroup>
     } @empty {
-      <option value="" disabled>No hay categorías: créalas en la pestaña Presupuesto</option>
+      <mat-option disabled>No hay categorías: créalas en la pestaña Presupuesto</mat-option>
     }
-  </select>
-</div>
+  </mat-select>
+</mat-form-field>

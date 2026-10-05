@@ -2,11 +2,12 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../../core/auth.service';
 import { emailValido, LONGITUD_MINIMA_LOGIN } from '../../../../core/validacion';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
 import { PasswordInputComponent } from '../password-input/password-input.component';
 
 @Component({
   selector: 'app-login-form',
-  imports: [FormsModule, PasswordInputComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, PasswordInputComponent],
   templateUrl: './login-form.component.html',
 })
 export class LoginFormComponent {

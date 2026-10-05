@@ -7,7 +7,7 @@
   </header>
 
   <div class="filtro-mes">
-    <app-campo-mes etiqueta="Mes" [(valor)]="filtroMes" />
+    <app-filtro-periodo [(periodo)]="periodo" />
     <p class="resumen-filtro" aria-live="polite">
       <span>Ingresos <strong class="positivo">{{ totales().ingresos | moneda }}</strong></span>
       <span>Gastos <strong class="negativo">{{ totales().gastos | moneda }}</strong></span>
@@ -41,7 +41,7 @@
           (eliminar)="eliminar(movimiento)" />
       </li>
     } @empty {
-      <li class="vacio">No hay movimientos {{ filtroTipo() ? 'de este tipo ' : '' }}este mes</li>
+      <li class="vacio">No hay movimientos {{ filtroTipo() ? 'de este tipo ' : '' }}en este período</li>
     }
   </ul>
 </section>

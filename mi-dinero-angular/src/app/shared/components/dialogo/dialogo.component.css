@@ -1,0 +1,46 @@
+.dialogo-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem 0;
+}
+
+.dialogo-encabezado h2 {
+  padding: 0;
+  margin: 0;
+}
+
+.dialogo-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  font-size: 1.125rem;
+  color: var(--color-primario);
+  background: var(--color-primario-suave);
+  border-radius: 50%;
+  animation: dialogo-latido 400ms var(--curva-suave) both;
+}
+
+.dialogo-error .dialogo-icono,
+.dialogo-peligro .dialogo-icono {
+  color: var(--color-negativo);
+  background: var(--color-negativo-suave);
+}
+
+.dialogo-mensaje {
+  white-space: pre-line;
+  color: var(--color-texto-suave);
+}
+
+.boton-peligro {
+  --mat-button-filled-container-color: var(--color-negativo);
+  --mat-button-filled-label-text-color: #ffffff;
+}
+
+@keyframes dialogo-latido {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}

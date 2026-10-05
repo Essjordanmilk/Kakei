@@ -3,13 +3,16 @@ import { FormsModule } from '@angular/forms';
 import { NotificacionService } from '../../../../core/notificacion.service';
 import { fechaHoyIso } from '../../../../core/utils';
 import { CampoFechaComponent } from '../../../../shared/components/campo-fecha/campo-fecha.component';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
+import { firmaFormulario } from '../../../../shared/utils/formulario';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { MetaAhorro } from '../../dinero.models';
 import { DineroService } from '../../dinero.service';
 
 @Component({
   selector: 'app-modal-meta',
-  imports: [FormsModule, CampoFechaComponent, ModalComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, CampoFechaComponent, CampoMontoComponent, ModalComponent],
   templateUrl: './modal-meta.component.html',
 })
 export class ModalMetaComponent {
@@ -31,6 +34,20 @@ export class ModalMetaComponent {
   protected readonly fecha = linkedSignal<string>(() => this.meta()?.fecha_objetivo ?? '');
 
   protected readonly titulo = computed<string>(() => `${this.meta() ? 'Editar' : 'Nueva'} meta de ahorro`);
+
+  private readonly borrador = computed(() => ({
+    nombre: this.nombre(),
+    objetivo: this.objetivo(),
+    ahorrado: this.ahorrado(),
+    fecha: this.fecha(),
+  }));
+  private readonly borradorInicial = linkedSignal({
+    source: () => this.meta(),
+    computation: () => firmaFormulario(this.borrador()),
+  });
+  protected readonly hayCambios = computed(
+    () => firmaFormulario(this.borrador()) !== this.borradorInicial(),
+  );
 
   protected async guardar(): Promise<void> {
     const nombre = this.nombre().trim();

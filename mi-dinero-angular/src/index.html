@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Mi Vida</title>
+  <title>Kane · Tu dinero, en orden</title>
+  <meta name="description" content="Kane: gestión personal de dinero, cuentas y presupuesto">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -11,7 +12,7 @@
   <script>
     (function () {
       var tema = null;
-      try { tema = JSON.parse(localStorage.getItem('mi-vida:tema')); } catch (e) {}
+      try { tema = JSON.parse(localStorage.getItem('kane:tema') || localStorage.getItem('mi-vida:tema')); } catch (e) {}
       if (tema !== 'claro' && tema !== 'oscuro') {
         tema = window.matchMedia('(prefers-color-scheme: light)').matches ? 'claro' : 'oscuro';
       }

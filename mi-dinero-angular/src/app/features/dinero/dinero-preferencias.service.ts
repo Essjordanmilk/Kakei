@@ -51,11 +51,8 @@ export class DineroPreferenciasService {
     });
   }
 
-  asignarColor(categoriaId: string, slot: SlotColor): void {
-    this.coloresCategoria.update((colores) => ({ ...colores, [categoriaId]: slot }));
-  }
-
-  quitarColor(categoriaId: string): void {
-    this.coloresCategoria.update(({ [categoriaId]: _eliminado, ...resto }) => resto);
+  // Los colores ya se guardan en la BD (ver DineroService.migrarColoresLocales)
+  limpiarColoresLegados(): void {
+    this.coloresCategoria.set({});
   }
 }

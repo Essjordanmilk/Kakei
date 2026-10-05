@@ -1,15 +1,9 @@
-<app-page-header titulo="Mi Dinero">
+<app-page-header>
   <app-menu-respaldo />
 </app-page-header>
 <app-tabs [tabs]="tabs" [(activa)]="tabActiva" etiqueta="Secciones de Mi Dinero" />
 
 <main class="contenido" [class.contenido-ancho]="tabActiva() === 'dashboard'">
-  @if (requiereMigracion()) {
-    <p class="alerta-advertencia mb-16" role="alert">
-      La base de datos aún no tiene cuentas. Ejecuta el script <strong>supabase/cuentas.sql</strong> en el
-      SQL Editor de Supabase para activar el modo multicuenta y migrar tus datos.
-    </p>
-  }
   <!-- Cada pestaña se crea al activarla, así que entra con animación -->
   @switch (tabActiva()) {
     @case ('dashboard') {

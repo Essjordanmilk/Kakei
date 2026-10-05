@@ -4,6 +4,7 @@
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { NombreIcono } from '../../shared/iconos';
 import { EstadoBarra, OpcionSelect } from '../../shared/models/ui.models';
+import type { SlotColor } from '../../shared/utils/colores';
 import type { TablaDinero } from './dinero.constantes';
 
 // ============================================
@@ -24,17 +25,12 @@ export type TipoCategoria = Exclude<TipoMovimiento, 'TRASLADO'>;
 
 export type TipoCuenta = 'debito' | 'credito' | 'inversion' | 'ahorro';
 
-// Posición en la paleta categórica de la app; se pinta como var(--serie-N)
-export type SlotColor = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+// Posición en la paleta categórica de la app (ver shared/utils/colores.ts)
+export type { SlotColor };
 
 // ============================================
 // ENTIDADES (filas de Supabase)
 // ============================================
-export interface Configuracion {
-  id?: string;
-  ingreso_mensual: number;
-}
-
 // El saldo actual no se guarda: se calcula a partir de saldo_inicial y de las
 // transacciones (ver CuentaConSaldo). En crédito el saldo es negativo si se debe.
 export interface Cuenta {
@@ -54,8 +50,12 @@ export interface CategoriaGrande {
   id: string;
   nombre: string;
   tipo: TipoCategoria;
-  // Porcentaje del ingreso mensual asignado (solo categorías de gasto)
-  porcentaje: number;
+  // Monto máximo a gastar al mes (solo categorías de gasto; 0 = sin límite)
+  presupuesto_mensual: number;
+  // 'serie-N' (paleta de la app) o '#rrggbb' (color libre). null = automático
+  color: string | null;
+  // Nombre de un icono del catálogo (ICONOS_CATEGORIA). null = automático
+  icono: string | null;
   orden: number;
 }
 
@@ -122,6 +122,7 @@ export interface DeudaPago {
   movimiento_id?: string;
 }
 
+// Gasto recurrente. Si tiene dia_aplicacion, la app lo registra sola cada mes ese día.
 export interface GastoFijo {
   id: string;
   nombre: string;
@@ -129,15 +130,20 @@ export interface GastoFijo {
   cuenta_id: string | null;
   categoria_id: string | null;
   subcategoria_id: string | null;
+  dia_aplicacion: number | null;
+  // No se aplican automáticamente fechas anteriores a esta (YYYY-MM-DD)
+  aplicar_desde: string;
   activo: boolean;
   created_at: string;
 }
 
+// Un registro por gasto fijo y mes. `omitido` = el usuario lo desmarcó ese mes.
 export interface GastoFijoPago {
   id: string;
   gasto_fijo_id: string;
   mes: string;
-  movimiento_id?: string;
+  movimiento_id?: string | null;
+  omitido: boolean;
 }
 
 // ============================================
@@ -173,10 +179,14 @@ export type CortePayload = Pick<CorteTarjeta, 'cuenta_id' | 'mes' | 'monto_corte
 
 export type GastoFijoPayload = Pick<
   GastoFijo,
-  'nombre' | 'monto' | 'cuenta_id' | 'categoria_id' | 'subcategoria_id'
->;
+  'nombre' | 'monto' | 'cuenta_id' | 'categoria_id' | 'subcategoria_id' | 'dia_aplicacion'
+> &
+  Partial<Pick<GastoFijo, 'aplicar_desde'>>;
 
-export type CategoriaGrandePayload = Pick<CategoriaGrande, 'nombre' | 'porcentaje'> &
+export type CategoriaGrandePayload = Pick<
+  CategoriaGrande,
+  'nombre' | 'presupuesto_mensual' | 'color' | 'icono'
+> &
   Partial<Pick<CategoriaGrande, 'orden' | 'tipo'>>;
 
 export type MetaAhorroPayload = Pick<
@@ -184,8 +194,8 @@ export type MetaAhorroPayload = Pick<
   'nombre' | 'valor_objetivo' | 'valor_ahorrado' | 'fecha_objetivo'
 >;
 
-// Porcentaje asignado a cada categoría grande, indexado por su id
-export type PorcentajesPorCategoria = Record<string, number>;
+// Presupuesto mensual de cada categoría de gasto, indexado por su id
+export type PresupuestosPorCategoria = Record<string, number>;
 
 // ============================================
 // MODELOS DE VISTA
@@ -278,17 +288,11 @@ export interface SegmentoPastel {
   etiqueta: EtiquetaSegmento | null;
 }
 
-export interface AvisoSuma {
-  texto: string;
-  correcta: boolean;
-}
-
 // ============================================
 // VALORES PREDETERMINADOS Y PREFERENCIAS
 // ============================================
 export interface CategoriaPredeterminada {
   nombre: string;
-  porcentaje: number;
   slot: SlotColor;
   icono: NombreIcono;
 }
@@ -304,7 +308,15 @@ export type ColoresCategoria = Record<string, SlotColor>;
 // Preferencias de interfaz del módulo, guardadas en localStorage
 export interface PreferenciasDinero {
   tabActiva: TabDinero;
+  // Colores elegidos antes de que se guardaran en la BD; se migran una vez
   coloresCategoria: ColoresCategoria;
+}
+
+// Ocurrencia mensual de un gasto fijo que corresponde aplicar
+export interface AplicacionGastoFijo {
+  gasto: GastoFijo;
+  mes: string;
+  fecha: string;
 }
 
 // ============================================
@@ -329,7 +341,6 @@ export interface CacheDinero {
   version: number;
   // Mes (YYYY-MM) al que pertenecen los registros mensuales (cortes y pagos)
   mes: string;
-  configuracion: Configuracion;
   cuentas: Cuenta[];
   categoriasGrandes: CategoriaGrande[];
   subcategorias: Subcategoria[];
@@ -353,7 +364,8 @@ export interface RespaldoDinero {
   version: number;
   exportadoEn: string;
   datos: DatosRespaldo;
-  preferencias: Pick<PreferenciasDinero, 'coloresCategoria'>;
+  // Solo en respaldos v2: los colores aún vivían en el navegador
+  preferencias?: Pick<PreferenciasDinero, 'coloresCategoria'>;
 }
 
 export type ConteoRespaldo = Record<TablaDinero, number>;

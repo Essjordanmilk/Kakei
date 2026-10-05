@@ -1,0 +1,40 @@
+.selector-color {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.muestra-color {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  background: var(--color-muestra);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--color-superficie), 0 0 0 3px transparent;
+  transition: transform var(--duracion-rapida) var(--curva-suave), box-shadow var(--duracion-rapida) ease;
+}
+
+.muestra-color:hover {
+  transform: scale(1.1);
+}
+
+.muestra-color[aria-checked='true'] {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px var(--color-superficie), 0 0 0 4px var(--color-texto);
+}
+
+/* El color libre se distingue con el icono de paleta encima */
+.muestra-libre {
+  font-size: 0.8125rem;
+  color: #ffffff;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}
+
+.muestra-libre:focus-within {
+  outline: 2px solid var(--color-primario);
+  outline-offset: 3px;
+}

@@ -1,5 +1,6 @@
 import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
+import { NotificacionService } from '../../../core/notificacion.service';
 import { ICONOS } from '../../iconos';
 
 let siguienteId = 0;
@@ -24,6 +25,9 @@ export class ModalComponent {
   readonly titulo = input.required<string>();
   readonly textoConfirmar = input<string>('Guardar');
   readonly textoCancelar = input<string>('Cancelar');
+  // Si es true, cerrar (clic fuera, Escape o Cancelar) pide confirmación para no
+  // perder lo escrito. Cada modal lo calcula comparando su borrador con el original.
+  readonly hayCambios = input<boolean>(false);
 
   readonly cerrar = output<void>();
   readonly confirmar = output<void>();
@@ -32,6 +36,8 @@ export class ModalComponent {
   protected readonly iconos = ICONOS;
   protected readonly saliendo = signal(false);
 
+  private readonly notificacion = inject(NotificacionService);
+  private confirmando = false;
   private temporizadorSalida: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -45,13 +51,32 @@ export class ModalComponent {
     this.temporizadorSalida = setTimeout(() => this.finalizarSalida(), ESPERA_MAXIMA_SALIDA_MS);
   }
 
+  // Cierre pedido por el usuario (clic fuera, Escape, X o Cancelar): si hay
+  // cambios sin guardar, pide confirmación antes de cerrar.
+  protected async intentarCerrar(): Promise<void> {
+    if (this.saliendo() || this.confirmando) return;
+    if (!this.hayCambios()) {
+      this.cerrarAnimado();
+      return;
+    }
+    this.confirmando = true;
+    const salir = await this.notificacion.confirmar('Los cambios que hiciste no se han guardado.', {
+      titulo: '¿Salir sin guardar?',
+      textoConfirmar: 'Salir',
+      textoCancelar: 'Seguir editando',
+      peligro: true,
+    });
+    this.confirmando = false;
+    if (salir) this.cerrarAnimado();
+  }
+
   protected alTerminarAnimacion(evento: AnimationEvent): void {
     if (this.saliendo() && evento.target === evento.currentTarget) this.finalizarSalida();
   }
 
   protected alPresionarEscape(evento: Event): void {
     // Si un popup interno (p. ej. el calendario) ya atendió el Escape, no cierra el modal
-    if (!evento.defaultPrevented) this.cerrarAnimado();
+    if (!evento.defaultPrevented) void this.intentarCerrar();
   }
 
   protected enviar(evento: Event): void {

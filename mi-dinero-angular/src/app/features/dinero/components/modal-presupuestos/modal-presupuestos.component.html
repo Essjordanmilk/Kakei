@@ -1,0 +1,18 @@
+<app-modal titulo="Presupuesto mensual" [hayCambios]="hayCambios()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
+  <p class="hint mb-14">
+    Define cuánto quieres gastar como máximo cada mes en cada categoría. Déjala en 0 si no quieres límite.
+  </p>
+
+  @for (fila of filas(); track fila.categoria.id) {
+    <app-campo-monto [etiqueta]="fila.categoria.nombre" [icono]="fila.icono"
+      [colorCategoria]="fila.color" [valor]="fila.monto"
+      (valorChange)="actualizar(fila.categoria.id, $event)" />
+  } @empty {
+    <p class="vacio">Aún no tienes categorías de gasto. Créalas en la pestaña Presupuesto.</p>
+  }
+
+  <p class="fila-distribucion mt-8">
+    <span>Total presupuestado</span>
+    <strong>{{ total() | moneda }}</strong>
+  </p>
+</app-modal>

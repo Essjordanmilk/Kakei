@@ -4,38 +4,60 @@
     <span class="icono-categoria" aria-hidden="true"><fa-icon [icon]="r.icono" /></span>
     <div class="tarjeta-categoria-titulo">
       <h3 class="subtarjeta-titulo">{{ r.categoria.nombre }}</h3>
-      <span class="fila-detalle">{{ r.categoria.porcentaje }}% del ingreso · {{ textoSubcategorias() }}</span>
+      <span class="fila-detalle">{{ textoSubcategorias() }}</span>
     </div>
-    <span class="uso-categoria" [class.uso-advertencia]="r.estado === 'advertencia'"
-      [class.uso-excedido]="r.estado === 'excedido'" title="Presupuesto usado">
-      {{ r.porcentajeUsado | porcentaje }}
-    </span>
+    @if (tieneLimite()) {
+      <span class="uso-categoria" [class.uso-advertencia]="r.estado === 'advertencia'"
+        [class.uso-excedido]="r.estado === 'excedido'" title="Presupuesto usado">
+        {{ r.porcentajeUsado | porcentaje }}
+      </span>
+    }
+    <!-- Todas las acciones en un solo menú: la tarjeta queda limpia para leer las cifras -->
+    <button matIconButton type="button" class="boton-menu" [matMenuTriggerFor]="menu"
+      [attr.aria-label]="'Acciones de ' + r.categoria.nombre">
+      <fa-icon [icon]="iconos.menu" />
+    </button>
+    <mat-menu #menu="matMenu" xPosition="before">
+      <button mat-menu-item type="button" (click)="editar.emit()">
+        <fa-icon class="icono-menu" [icon]="iconos.editar" /><span>Editar categoría</span>
+      </button>
+      <button mat-menu-item type="button" (click)="agregarSubcategoria.emit()">
+        <fa-icon class="icono-menu" [icon]="iconos.agregar" /><span>Agregar subcategoría</span>
+      </button>
+      <button mat-menu-item type="button" class="menu-peligro" (click)="eliminar()">
+        <fa-icon class="icono-menu" [icon]="iconos.eliminar" /><span>Eliminar</span>
+      </button>
+    </mat-menu>
   </header>
 
   <dl class="cifras">
     <div>
       <dt>Presupuesto</dt>
-      <dd>{{ r.presupuesto | moneda }}</dd>
+      <dd>{{ tieneLimite() ? (r.presupuesto | moneda) : 'Sin límite' }}</dd>
     </div>
     <div>
       <dt>Gastado</dt>
       <dd>{{ r.gastado | moneda }}</dd>
     </div>
-    <div>
-      <dt>Disponible</dt>
-      <dd>
-        <strong [class.positivo]="r.disponible >= 0" [class.negativo]="r.disponible < 0">
-          {{ r.disponible | moneda }}
-        </strong>
-      </dd>
-    </div>
+    @if (tieneLimite()) {
+      <div>
+        <dt>Disponible</dt>
+        <dd>
+          <strong [class.positivo]="r.disponible >= 0" [class.negativo]="r.disponible < 0">
+            {{ r.disponible | moneda }}
+          </strong>
+        </dd>
+      </div>
+    }
   </dl>
 
-  <app-progress-bar [porcentaje]="r.porcentajeUsado" [estado]="r.estado"
-    [etiqueta]="'Presupuesto usado de ' + r.categoria.nombre" />
-  @if (r.alerta) {
-    <p class="alerta-texto" role="status" [class.texto-advertencia]="r.estado === 'advertencia'"
-      [class.texto-negativo]="r.estado === 'excedido'">{{ r.alerta }}</p>
+  @if (tieneLimite()) {
+    <app-progress-bar [porcentaje]="r.porcentajeUsado" [estado]="r.estado"
+      [etiqueta]="'Presupuesto usado de ' + r.categoria.nombre" />
+    @if (r.alerta) {
+      <p class="alerta-texto" role="status" [class.texto-advertencia]="r.estado === 'advertencia'"
+        [class.texto-negativo]="r.estado === 'excedido'">{{ r.alerta }}</p>
+    }
   }
 
   @if (r.subcategorias.length > 0) {
@@ -49,11 +71,4 @@
       }
     </ul>
   }
-
-  <footer class="tarjeta-categoria-acciones">
-    <button type="button" class="btn-secundario btn-pequeno" (click)="agregarSubcategoria.emit()">
-      <fa-icon [icon]="iconos.agregar" /> Subcategoría
-    </button>
-    <app-acciones-fila [nombre]="r.categoria.nombre" (editar)="editar.emit()" (eliminar)="eliminar()" />
-  </footer>
 </article>

@@ -1,13 +1,20 @@
 @let g = gasto();
 <div class="fila fila-con-color" [style.--color-categoria]="color()">
-  <input #casilla type="checkbox" class="checkbox-pagado" [checked]="pagado()"
-    [attr.aria-label]="'Marcar ' + g.nombre + ' como pagado'"
-    (change)="alternarPago(casilla.checked)" />
+  <mat-checkbox [checked]="pagado()" [aria-label]="'Marcar ' + g.nombre + ' como pagado este mes'"
+    (change)="alternarPago($event)" />
   <span class="punto-categoria" aria-hidden="true"></span>
   <div class="fila-info">
     <span class="fila-titulo">{{ g.nombre }}</span>
     @if (conDetalle()) {
       <span class="fila-detalle">{{ detalle() }}</span>
+    }
+    @if (proxima(); as fecha) {
+      <span class="fila-detalle fila-recurrente">
+        <fa-icon [icon]="iconos.recurrente" aria-hidden="true" />
+        Día {{ g.dia_aplicacion }} · próxima: {{ fecha | fechaCorta }}
+      </span>
+    } @else if (conDetalle()) {
+      <span class="fila-detalle">Manual</span>
     }
   </div>
   <span class="fila-monto">{{ g.monto | moneda }}</span>

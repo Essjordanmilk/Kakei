@@ -1,18 +1,12 @@
-<app-modal [titulo]="titulo()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
-  <label class="campo">
-    <span class="campo-etiqueta">Nombre</span>
-    <input type="text" [(ngModel)]="nombre" placeholder="Ej: Fondo de emergencia" />
-  </label>
+<app-modal [titulo]="titulo()" [hayCambios]="hayCambios()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
+  <mat-form-field>
+    <mat-label>Nombre</mat-label>
+    <input matInput type="text" [(ngModel)]="nombre" placeholder="Ej: Fondo de emergencia" />
+  </mat-form-field>
 
-  <label class="campo">
-    <span class="campo-etiqueta">Valor objetivo</span>
-    <input type="number" [(ngModel)]="objetivo" min="0" placeholder="0" inputmode="numeric" />
-  </label>
+  <app-campo-monto etiqueta="Valor objetivo" [(valor)]="objetivo" />
 
-  <label class="campo">
-    <span class="campo-etiqueta">Valor ahorrado hasta ahora</span>
-    <input type="number" [(ngModel)]="ahorrado" min="0" placeholder="0" inputmode="numeric" />
-  </label>
+  <app-campo-monto etiqueta="Valor ahorrado hasta ahora" [(valor)]="ahorrado" />
 
   <app-campo-fecha etiqueta="Fecha objetivo (opcional)" [opcional]="true" [minima]="hoy" [(valor)]="fecha" />
 </app-modal>

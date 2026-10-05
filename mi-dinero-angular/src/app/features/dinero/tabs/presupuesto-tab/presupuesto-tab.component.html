@@ -1,15 +1,17 @@
 <section aria-labelledby="titulo-presupuesto">
   <header class="panel-header">
     <h2 id="titulo-presupuesto">Presupuesto</h2>
-    <button type="button" class="btn-primario" (click)="modalConfiguracionAbierto.set(true)">
-      <fa-icon [icon]="iconos.configurar" /> Configurar ingreso y %
+    <button type="button" class="btn-primario" (click)="modalPresupuestosAbierto.set(true)">
+      <fa-icon [icon]="iconos.configurar" /> Ajustar presupuestos
     </button>
   </header>
 
   <div class="tarjetas">
-    <app-stat-card etiqueta="Ingreso mensual" [valor]="service.configuracion().ingreso_mensual" />
-    <app-stat-card etiqueta="Comprometido este mes" [valor]="service.comprometidoEsteMes()" />
-    <app-stat-card etiqueta="Disponible para gastar" subetiqueta="Presupuesto de Ocio"
+    <app-stat-card etiqueta="Presupuesto del mes" subetiqueta="Suma de los límites por categoría"
+      [valor]="service.presupuestoTotal()" />
+    <app-stat-card etiqueta="Gastado este mes" [valor]="service.gastosMes()"
+      [tono]="presupuestoExcedido() ? 'negativo' : 'neutro'" />
+    <app-stat-card etiqueta="Disponible para gastar" subetiqueta="Lo que queda del presupuesto de entretenimiento"
       [valor]="service.disponibleParaGastar()" [destacada]="true" />
   </div>
 
@@ -43,9 +45,6 @@
         </button>
       </div>
     } @else {
-      @if (!avisoPorcentajes().correcta) {
-        <p class="alerta-advertencia mb-12" role="alert">{{ avisoPorcentajes().texto }}</p>
-      }
       <div class="rejilla-categorias">
         @for (resumen of service.resumenCategorias(); track resumen.categoria.id) {
           <app-categoria-presupuesto-card [resumen]="resumen"
@@ -101,8 +100,8 @@
   </article>
 </section>
 
-@if (modalConfiguracionAbierto()) {
-  <app-modal-configuracion (cerrar)="modalConfiguracionAbierto.set(false)" />
+@if (modalPresupuestosAbierto()) {
+  <app-modal-presupuestos (cerrar)="modalPresupuestosAbierto.set(false)" />
 }
 @if (modalCategoria.abierto()) {
   <app-modal-categoria [categoria]="modalCategoria.entidad()" (cerrar)="modalCategoria.cerrar()" />

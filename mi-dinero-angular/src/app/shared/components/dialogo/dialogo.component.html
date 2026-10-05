@@ -1,0 +1,16 @@
+<header class="dialogo-encabezado" [class]="'dialogo-' + datos.tipo" [class.dialogo-peligro]="datos.peligro">
+  <span class="dialogo-icono" aria-hidden="true"><fa-icon [icon]="icono" /></span>
+  <h2 mat-dialog-title>{{ datos.titulo }}</h2>
+</header>
+
+<mat-dialog-content>
+  <p class="dialogo-mensaje">{{ datos.mensaje }}</p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  @if (conCancelar) {
+    <button matButton type="button" [mat-dialog-close]="false">{{ datos.textoCancelar ?? 'Cancelar' }}</button>
+  }
+  <button matButton="filled" type="button" cdkFocusInitial [class.boton-peligro]="datos.peligro"
+    [mat-dialog-close]="true">{{ textoConfirmar() }}</button>
+</mat-dialog-actions>

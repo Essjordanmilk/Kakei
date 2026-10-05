@@ -1,7 +1,6 @@
-/* Compartido por app-campo-fecha y app-campo-mes */
+/* Compartido por app-campo-fecha y app-filtro-periodo */
 :host {
   display: block;
-  margin-bottom: 0.875rem;
 }
 
 .campo-fecha {

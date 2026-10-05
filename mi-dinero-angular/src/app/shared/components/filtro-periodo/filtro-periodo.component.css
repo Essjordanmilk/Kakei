@@ -1,0 +1,19 @@
+:host {
+  display: block;
+}
+
+.filtro-periodo {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.filtro-periodo mat-form-field {
+  flex: 1 1 15rem;
+  min-width: 0;
+  max-width: 18rem;
+}
+
+.filtro-periodo fa-icon {
+  color: var(--color-texto-suave);
+}

@@ -22,6 +22,21 @@
   text-align: center;
 }
 
+.login-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-primario), var(--serie-7));
+  border-radius: 1rem;
+  box-shadow: var(--sombra-elevada);
+}
+
 .login-header h1 {
   font-size: 1.375rem;
   font-weight: 700;

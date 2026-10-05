@@ -37,11 +37,3 @@ export const FORMATOS_FECHA: MatDateFormats = {
     monthYearA11yLabel: { year: 'numeric', month: 'long' },
   },
 };
-
-export const FORMATOS_MES: MatDateFormats = {
-  parse: { dateInput: null },
-  display: {
-    ...FORMATOS_FECHA.display,
-    dateInput: { year: 'numeric', month: 'long' },
-  },
-};

@@ -23,7 +23,8 @@ export class MetaAhorroCardComponent {
   protected readonly info = computed<InfoMeta>(() => calcularInfoMeta(this.meta()));
 
   protected async eliminar(): Promise<void> {
-    if (!this.notificacion.confirmar('¿Eliminar esta meta de ahorro?')) return;
+    const mensaje = `Se eliminará la meta "${this.meta().nombre}".`;
+    if (!(await this.notificacion.confirmarEliminacion(mensaje, 'Eliminar meta'))) return;
     const error = await this.service.eliminarMeta(this.meta().id);
     if (error) this.notificacion.error(error);
   }

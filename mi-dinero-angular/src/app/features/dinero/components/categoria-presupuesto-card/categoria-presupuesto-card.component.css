@@ -113,11 +113,12 @@
   background: var(--color-negativo-suave);
 }
 
-.tarjeta-categoria-acciones {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 0.75rem;
+.boton-menu {
+  flex-shrink: 0;
+  margin-right: -0.5rem;
+  color: var(--color-texto-suave);
+}
+
+.boton-menu fa-icon {
+  font-size: 1rem;
 }

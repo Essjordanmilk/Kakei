@@ -39,8 +39,8 @@
 
       <g [class.grafica-atenuada]="indiceActivo() !== null">
         @for (grupo of grupos(); track grupo.mes.clave; let i = $index) {
-          <rect class="grafica-banda-hover" [class.activa]="indiceActivo() === i" [attr.x]="grupo.banda.x"
-            [attr.y]="0" [attr.width]="grupo.banda.ancho" [attr.height]="base" />
+          <rect class="grafica-banda-hover" [class.activa]="indiceActivo() === i" [attr.x]="grupo.resalte.x"
+            [attr.y]="0" rx="8" [attr.width]="grupo.resalte.ancho" [attr.height]="base" />
           <path class="grafica-marca" [class.resaltada]="indiceActivo() === i" [attr.d]="grupo.ingresos"
             [style.fill]="colorIngresos" />
           <path class="grafica-marca" [class.resaltada]="indiceActivo() === i" [attr.d]="grupo.gastos"

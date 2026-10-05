@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { formatoMonedaCompacta } from '../../../../core/utils';
+import { MonedaService } from '../../../../core/moneda.service';
 import { MonedaPipe } from '../../../../shared/pipes/moneda.pipe';
 import { MarcaEje, marcasEje, MargenesGrafica } from '../../../../shared/utils/graficas';
 import { maximoEjeRedondo } from '../../dinero.calculos';
@@ -32,6 +32,7 @@ interface PuntoBalance {
 })
 export class GraficaBalanceComponent {
   private readonly service = inject(DineroService);
+  private readonly monedaService = inject(MonedaService);
 
   protected readonly viewBox = `0 0 ${ANCHO} ${ALTO}`;
   protected readonly base = BASE;
@@ -58,7 +59,9 @@ export class GraficaBalanceComponent {
 
   protected readonly marcas = computed<MarcaEje[]>(() => {
     const { minimo, maximo } = this.rango();
-    return marcasEje(minimo, maximo, CANTIDAD_MARCAS, (v) => this.aY(v), formatoMonedaCompacta);
+    return marcasEje(minimo, maximo, CANTIDAD_MARCAS, (v) => this.aY(v), (v) =>
+      this.monedaService.formatearCompacto(v),
+    );
   });
 
   protected readonly yCero = computed<number>(() => this.aY(0));
@@ -99,7 +102,7 @@ export class GraficaBalanceComponent {
   );
 
   protected readonly textoUltimo = computed<string>(() =>
-    formatoMonedaCompacta(this.ultimo()?.mes.balanceCierre ?? 0),
+    this.monedaService.formatearCompacto(this.ultimo()?.mes.balanceCierre ?? 0),
   );
 
   private aY(valor: number): number {

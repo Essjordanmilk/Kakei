@@ -10,6 +10,12 @@ export interface TabItem<T extends string> {
   readonly etiqueta: string;
 }
 
+// Rango de fechas YYYY-MM-DD (ambos extremos incluidos; hasta = '' mientras se elige)
+export interface PeriodoFechas {
+  readonly desde: string;
+  readonly hasta: string;
+}
+
 export type EstadoBarra = 'normal' | 'ok' | 'advertencia' | 'excedido';
 
 export type VarianteToggle = 'positivo' | 'negativo' | 'neutro';

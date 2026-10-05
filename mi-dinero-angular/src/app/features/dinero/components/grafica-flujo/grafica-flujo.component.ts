@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { formatoMonedaCompacta } from '../../../../core/utils';
+import { MonedaService } from '../../../../core/moneda.service';
 import { MonedaPipe } from '../../../../shared/pipes/moneda.pipe';
 import { MarcaEje, marcasEje, MargenesGrafica, pathColumna } from '../../../../shared/utils/graficas';
 import { maximoEjeRedondo } from '../../dinero.calculos';
@@ -25,6 +25,8 @@ export const COLOR_GASTOS = colorDeSlot(2);
 interface GrupoMes {
   mes: ResumenMes;
   banda: { x: number; ancho: number };
+  // Rectángulo que resalta el par de columnas del mes (queda centrado con ellas)
+  resalte: { x: number; ancho: number };
   ingresos: string;
   gastos: string;
   xEtiqueta: number;
@@ -38,6 +40,7 @@ interface GrupoMes {
 })
 export class GraficaFlujoComponent {
   private readonly service = inject(DineroService);
+  private readonly monedaService = inject(MonedaService);
 
   protected readonly viewBox = `0 0 ${ANCHO} ${ALTO}`;
   protected readonly base = BASE;
@@ -58,7 +61,9 @@ export class GraficaFlujoComponent {
   );
 
   protected readonly marcas = computed<MarcaEje[]>(() =>
-    marcasEje(0, this.maximo(), CANTIDAD_MARCAS, (v) => this.aY(v), formatoMonedaCompacta),
+    marcasEje(0, this.maximo(), CANTIDAD_MARCAS, (v) => this.aY(v), (v) =>
+      this.monedaService.formatearCompacto(v),
+    ),
   );
 
   protected readonly grupos = computed<GrupoMes[]>(() => {
@@ -71,9 +76,14 @@ export class GraficaFlujoComponent {
       const centro = xBanda + anchoBanda / 2;
       const xIngresos = centro - SEPARACION_COLUMNAS / 2 - anchoColumna;
       const xGastos = centro + SEPARACION_COLUMNAS / 2;
+      // El resaltado abraza el par de columnas (con un pequeño margen) en vez de
+      // ocupar toda la franja del mes, que hacía ver las barras desalineadas.
+      const anchoResalte = anchoColumna * 2 + SEPARACION_COLUMNAS;
+      const margenResalte = 0.4 * anchoColumna;
       return {
         mes,
         banda: { x: xBanda, ancho: anchoBanda },
+        resalte: { x: centro - anchoResalte / 2 - margenResalte, ancho: anchoResalte + margenResalte * 2 },
         ingresos: pathColumna(xIngresos, this.aY(mes.ingresos), anchoColumna, BASE),
         gastos: pathColumna(xGastos, this.aY(mes.gastos), anchoColumna, BASE),
         xEtiqueta: centro,

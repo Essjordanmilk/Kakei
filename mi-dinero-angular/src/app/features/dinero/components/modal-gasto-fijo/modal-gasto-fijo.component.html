@@ -1,15 +1,23 @@
-<app-modal [titulo]="titulo()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
-  <label class="campo">
-    <span class="campo-etiqueta">Nombre</span>
-    <input type="text" [(ngModel)]="nombre" placeholder="Ej: Arriendo" />
-  </label>
+<app-modal [titulo]="titulo()" [hayCambios]="hayCambios()" (cerrar)="cerrar.emit()" (confirmar)="guardar()">
+  <mat-form-field>
+    <mat-label>Nombre</mat-label>
+    <input matInput type="text" [(ngModel)]="nombre" placeholder="Ej: Arriendo" />
+  </mat-form-field>
 
-  <label class="campo">
-    <span class="campo-etiqueta">Monto</span>
-    <input type="number" [(ngModel)]="monto" min="0" placeholder="0" inputmode="numeric" />
-  </label>
+  <app-campo-monto etiqueta="Monto" [(valor)]="monto" />
 
   <app-selector-categoria tipo="GASTO" [(valor)]="categoria" />
 
-  <app-selector-cuenta etiqueta="Se paga con" [(valor)]="cuentaId" />
+  <app-selector-cuenta etiqueta="Se descuenta de" [(valor)]="cuentaId" />
+
+  <mat-form-field>
+    <mat-label>Día del mes en que se aplica</mat-label>
+    <mat-select [value]="dia()" (selectionChange)="cambiarDia($event)">
+      <mat-option [value]="null">Solo manual (lo marco yo)</mat-option>
+      @for (dia of diasDelMes; track dia) {
+        <mat-option [value]="dia">Día {{ dia }} de cada mes</mat-option>
+      }
+    </mat-select>
+    <mat-hint>{{ ayudaDia() }}</mat-hint>
+  </mat-form-field>
 </app-modal>

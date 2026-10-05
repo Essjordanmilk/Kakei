@@ -22,6 +22,7 @@ export class CampoFechaComponent {
   // Muestra un botón para dejar la fecha vacía
   readonly opcional = input<boolean>(false);
   readonly minima = input<string>('');
+  readonly maxima = input<string>('');
 
   protected readonly iconos = ICONOS;
 
@@ -33,6 +34,11 @@ export class CampoFechaComponent {
   protected readonly fechaMinima = computed<Date | null>(() => {
     const minima = this.minima();
     return minima ? fechaDesdeIso(minima) : null;
+  });
+
+  protected readonly fechaMaxima = computed<Date | null>(() => {
+    const maxima = this.maxima();
+    return maxima ? fechaDesdeIso(maxima) : null;
   });
 
   protected cambiar(evento: MatDatepickerInputEvent<Date>): void {

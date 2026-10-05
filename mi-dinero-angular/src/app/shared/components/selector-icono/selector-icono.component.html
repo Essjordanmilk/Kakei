@@ -1,0 +1,11 @@
+<fieldset class="campo">
+  <legend class="campo-etiqueta">{{ etiqueta() }}</legend>
+  <div class="rejilla-iconos" role="radiogroup" [attr.aria-label]="etiqueta()" [style.--color-icono]="color()">
+    @for (opcion of opciones; track opcion.nombre) {
+      <button type="button" class="opcion-icono" role="radio" [attr.aria-checked]="valor() === opcion.nombre"
+        [attr.aria-label]="'Icono ' + opcion.nombre" [title]="opcion.nombre" (click)="valor.set(opcion.nombre)">
+        <fa-icon [icon]="opcion.icono" />
+      </button>
+    }
+  </div>
+</fieldset>

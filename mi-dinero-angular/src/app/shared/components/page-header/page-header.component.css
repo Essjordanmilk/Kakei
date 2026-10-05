@@ -1,27 +1,51 @@
-/* Los botones (.btn-header) viven en styles.css porque los módulos también los
+/* Los botones (.btn-header) viven en styles.css porque las vistas también los
    proyectan dentro del encabezado. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.5rem 0.75rem;
   background: color-mix(in srgb, var(--color-superficie) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-borde);
 }
 
-.topbar-titulo {
+.marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   min-width: 0;
-  overflow: hidden;
-  font-size: 1rem;
+  color: var(--color-texto);
+  text-decoration: none;
+}
+
+.marca-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  font-size: 1.25rem;
   font-weight: 700;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-primario), var(--serie-7));
+  border-radius: 0.625rem;
+  transition: transform var(--duracion-media) var(--curva-suave);
+}
+
+.marca:hover .marca-logo {
+  transform: rotate(-8deg) scale(1.05);
+}
+
+.marca-nombre {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .topbar-acciones {
@@ -32,11 +56,6 @@
 
 @media (min-width: 37.5rem) {
   .topbar {
-    gap: 0.75rem;
     padding: 0.625rem 1.25rem;
-  }
-
-  .topbar-titulo {
-    font-size: 1.0625rem;
   }
 }

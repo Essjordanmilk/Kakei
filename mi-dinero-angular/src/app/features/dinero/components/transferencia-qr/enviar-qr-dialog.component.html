@@ -1,0 +1,28 @@
+<h2 mat-dialog-title>Enviar datos por QR</h2>
+
+<mat-dialog-content>
+  <ol class="pasos-qr">
+    <li>En tu móvil abre Kane, inicia sesión y ve a <strong>Respaldo → Recibir por QR</strong>.</li>
+    <li>Apunta la cámara a este código y mantenla quieta hasta que llegue al 100 %.</li>
+  </ol>
+
+  <figure class="marco-qr">
+    <canvas #lienzo class="lienzo-qr" role="img" aria-label="Código QR animado con tus datos"></canvas>
+    <figcaption>
+      Parte {{ indice() + 1 }} de {{ total }}
+      <mat-progress-bar mode="determinate" [value]="progreso()" />
+    </figcaption>
+  </figure>
+
+  <p class="hint">{{ datos.resumen }}</p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  @if (total > 1) {
+    <button matButton type="button" (click)="alternarPausa()">
+      <fa-icon [icon]="pausado() ? iconos.reproducir : iconos.pausa" />
+      {{ pausado() ? 'Reanudar' : 'Pausar' }}
+    </button>
+  }
+  <button matButton="filled" type="button" mat-dialog-close>Listo</button>
+</mat-dialog-actions>

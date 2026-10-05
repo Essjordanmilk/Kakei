@@ -1,28 +1,26 @@
-import {
-  computed,
-  effect,
-  inject,
-  Injectable,
-  signal,
-  untracked,
-  WritableSignal,
-} from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import { PostgrestError, PostgrestSingleResponse } from '@supabase/supabase-js';
-import { AlmacenamientoLocalService, esObjeto } from '../../core/almacenamiento-local.service';
-import { AuthService } from '../../core/auth.service';
-import { CLAVES_ALMACENAMIENTO } from '../../core/constantes';
-import { SUPABASE_CLIENT } from '../../core/supabase';
+import { MonedaService } from '../../core/moneda.service';
+import { NotificacionService } from '../../core/notificacion.service';
 import { MensajeError } from '../../core/tipos';
-import { fechaHoyIso, formatoMoneda, mesActual, normalizarTexto } from '../../core/utils';
-import { ICONOS } from '../../shared/iconos';
+import {
+  claveMes,
+  fechaHoyIso,
+  mesActual,
+  mesRelativo,
+  normalizarTexto,
+} from '../../core/utils';
+import { esNombreIcono, ICONOS, NombreIcono } from '../../shared/iconos';
 import { OpcionSelect } from '../../shared/models/ui.models';
 import { DineroPreferenciasService } from './dinero-preferencias.service';
+import { LocalDbService } from './local-db.service';
 import {
+  aplicacionesPendientes,
   calcularInfoTarjeta,
   calcularPatrimonio,
   calcularSaldos,
   categoriaPredeterminadaDe,
+  claveRegistroGastoFijo,
   ClasificacionGasto,
   estadoPresupuesto,
   resumenUltimosMeses,
@@ -36,6 +34,7 @@ import {
   COLOR_INGRESO,
   COLOR_SIN_CATEGORIA,
   COLOR_TRASLADO,
+  claveColorDeSlot,
   colorDeSlot,
   CUENTAS_PREDETERMINADAS,
   DIFERENCIA_MINIMA_AJUSTE,
@@ -44,20 +43,21 @@ import {
   ETIQUETA_PAGO_TARJETA,
   ETIQUETA_SIN_CATEGORIA,
   ETIQUETAS_TIPO_CUENTA,
+  INTERVALO_REVISION_GASTOS_FIJOS_MS,
   MESES_HISTORICO,
+  MESES_RECUPERACION_GASTOS_FIJOS,
   NOMBRES_CATEGORIA_OCIO,
   PORCENTAJE_TOTAL,
+  resolverColor,
   SLOTS_COLOR,
   TABLAS_DINERO,
   TablaDinero,
-  VERSION_CACHE,
 } from './dinero.constantes';
 import {
-  CacheDinero,
+  AplicacionGastoFijo,
   CategoriaGrande,
   CategoriaGrandePayload,
   CategoriaPredeterminada,
-  Configuracion,
   CortePayload,
   CorteTarjeta,
   Cuenta,
@@ -73,67 +73,43 @@ import {
   InfoTarjeta,
   MetaAhorro,
   MetaAhorroPayload,
-  PorcentajesPorCategoria,
+  PresupuestosPorCategoria,
   ResumenCategoria,
   ResumenMes,
   ResumenPatrimonio,
-  SlotColor,
   Subcategoria,
   TipoCategoria,
   Transaccion,
   TransaccionPayload,
 } from './dinero.models';
 
-interface RespuestaLista<T> {
-  data: T[] | null;
-  error: PostgrestError | null;
-}
+// La tabla `deudas` conserva la columna `tipo`; la app ya solo maneja préstamos
+// normales. Se declara aquí porque el modelo no la expone.
+type DeudaFila = Deuda & { tipo?: string };
 
-type FilaConId = Pick<Transaccion, 'id'>;
-
-const CONFIGURACION_VACIA: Configuracion = { ingreso_mensual: 0 };
-
-// Códigos con los que Supabase/PostgreSQL indican que una tabla no existe
-const CODIGOS_TABLA_INEXISTENTE: readonly string[] = ['PGRST205', '42P01'];
-
-// La tabla `deudas` conserva la columna `tipo`; la app ya solo maneja préstamos normales
 const TIPO_DEUDA_NORMAL = 'normal';
 
-const LISTAS_CACHE = [
-  'cuentas',
-  'categoriasGrandes',
-  'subcategorias',
-  'metasAhorro',
-  'cortesDelMes',
-  'movimientos',
-  'deudas',
-  'deudasPagosDelMes',
-  'gastosFijos',
-  'pagosDelMes',
-] as const satisfies readonly (keyof CacheDinero)[];
+// Identificador único local (uuid) para las filas nuevas
+function nuevoId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
+}
 
-function esCacheDinero(valor: unknown): valor is CacheDinero {
-  return (
-    esObjeto(valor) &&
-    valor['version'] === VERSION_CACHE &&
-    typeof valor['mes'] === 'string' &&
-    esObjeto(valor['configuracion']) &&
-    LISTAS_CACHE.every((lista) => Array.isArray(valor[lista]))
-  );
+function mensajeError(error: unknown): string {
+  return error instanceof Error ? error.message : 'No se pudo guardar en el almacenamiento local.';
 }
 
 @Injectable({ providedIn: 'root' })
 export class DineroService {
-  private readonly db = inject(SUPABASE_CLIENT);
-  private readonly auth = inject(AuthService);
-  private readonly almacenamiento = inject(AlmacenamientoLocalService);
+  private readonly db = inject(LocalDbService);
   private readonly preferencias = inject(DineroPreferenciasService);
+  private readonly notificacion = inject(NotificacionService);
+  private readonly monedaService = inject(MonedaService);
 
   // ============================================
   // ESTADO (solo escribible desde el servicio)
   // ============================================
   private readonly estado = {
-    configuracion: signal<Configuracion>(CONFIGURACION_VACIA),
     cuentas: signal<Cuenta[]>([]),
     categoriasGrandes: signal<CategoriaGrande[]>([]),
     subcategorias: signal<Subcategoria[]>([]),
@@ -146,15 +122,13 @@ export class DineroService {
     pagosDelMes: signal<GastoFijoPago[]>([]),
   };
 
-  // true cuando el estado ya refleja datos reales (de la copia local o de la BD),
-  // para no sobrescribir la copia local con el estado vacío inicial
+  // true cuando el estado ya refleja los datos locales
   private readonly datosListos = signal(false);
 
-  // true si la BD aún no tiene la tabla `cuentas` (falta ejecutar supabase/cuentas.sql)
-  private readonly faltaMigracion = signal(false);
-  readonly requiereMigracion = this.faltaMigracion.asReadonly();
+  // Evita dos revisiones simultáneas de gastos fijos en este dispositivo
+  private aplicandoGastosFijos = false;
+  private temporizadorGastosFijos: ReturnType<typeof setInterval> | null = null;
 
-  readonly configuracion = this.estado.configuracion.asReadonly();
   readonly categoriasGrandes = this.estado.categoriasGrandes.asReadonly();
   readonly subcategorias = this.estado.subcategorias.asReadonly();
   readonly metasAhorro = this.estado.metasAhorro.asReadonly();
@@ -164,55 +138,21 @@ export class DineroService {
   readonly gastosFijos = this.estado.gastosFijos.asReadonly();
 
   constructor() {
-    // Al iniciar sesión muestra al instante la copia local y luego la actualiza desde la BD.
-    // Al cerrarla limpia el estado y borra la copia local para no dejar datos en el equipo.
-    let usuarioAnterior: string | null = null;
-    effect(() => {
-      const usuarioId = this.auth.usuarioId();
-      untracked(() => {
-        if (usuarioId) {
-          this.restaurarCache(usuarioId);
-          void this.cargarTodo().then(() => this.asegurarValoresPorDefecto());
-        } else {
-          if (usuarioAnterior) {
-            this.almacenamiento.eliminar(CLAVES_ALMACENAMIENTO.cacheDinero(usuarioAnterior));
-          }
-          this.limpiar();
-        }
-        usuarioAnterior = usuarioId;
-      });
-    });
+    // Todo vive en IndexedDB: se carga al arrancar (sin sesión ni backend).
+    void this.inicializar();
+  }
 
-    // Persiste automáticamente en localStorage cada cambio de los datos
-    effect(() => {
-      const usuarioId = this.auth.usuarioId();
-      const cache = this.instantanea();
-      if (!usuarioId || !this.datosListos()) return;
-      untracked(() =>
-        this.almacenamiento.guardar(CLAVES_ALMACENAMIENTO.cacheDinero(usuarioId), cache),
-      );
-    });
+  private async inicializar(): Promise<void> {
+    await this.cargarTodo();
+    await this.asegurarValoresPorDefecto();
+    await this.migrarColoresLocales();
+    await this.aplicarGastosFijosPendientes();
+    this.iniciarRevisionGastosFijos();
   }
 
   // ============================================
   // DERIVADOS
   // ============================================
-  private readonly instantanea = computed<CacheDinero>(() => ({
-    version: VERSION_CACHE,
-    mes: mesActual(),
-    configuracion: this.estado.configuracion(),
-    cuentas: this.estado.cuentas(),
-    categoriasGrandes: this.estado.categoriasGrandes(),
-    subcategorias: this.estado.subcategorias(),
-    metasAhorro: this.estado.metasAhorro(),
-    cortesDelMes: this.estado.cortesDelMes(),
-    movimientos: this.estado.movimientos(),
-    deudas: this.estado.deudas(),
-    deudasPagosDelMes: this.estado.deudasPagosDelMes(),
-    gastosFijos: this.estado.gastosFijos(),
-    pagosDelMes: this.estado.pagosDelMes(),
-  }));
-
   // ---------- CUENTAS Y PATRIMONIO ----------
   // El saldo de cada cuenta se recalcula con cada transacción: crear, editar o
   // borrar una transacción nunca deja saldos desincronizados
@@ -267,19 +207,21 @@ export class DineroService {
     () => new Map(this.subcategorias().map((s) => [s.id, s])),
   );
 
-  // Color de cada categoría: el elegido por el usuario, el de la categoría
-  // sugerida con ese nombre o, si no, el siguiente de la paleta según su orden
-  private readonly slotPorCategoria = computed<Map<string, SlotColor>>(() => {
-    const elegidos = this.preferencias.coloresCategoria();
-    return new Map(
-      this.categoriasGrandes().map((categoria, i): [string, SlotColor] => [
-        categoria.id,
-        elegidos[categoria.id] ??
-          categoriaPredeterminadaDe(categoria.nombre)?.slot ??
-          SLOTS_COLOR[i % SLOTS_COLOR.length],
-      ]),
-    );
-  });
+  // Clave de color de cada categoría ('serie-N' o '#rrggbb'): la guardada
+  // o, si no tiene, la de la categoría sugerida con ese nombre o la siguiente de la paleta
+  private readonly colorPorCategoria = computed<Map<string, string>>(
+    () =>
+      new Map(
+        this.categoriasGrandes().map((categoria, i): [string, string] => [
+          categoria.id,
+          resolverColor(categoria.color) !== null && categoria.color
+            ? categoria.color
+            : claveColorDeSlot(
+                categoriaPredeterminadaDe(categoria.nombre)?.slot ?? SLOTS_COLOR[i % SLOTS_COLOR.length],
+              ),
+        ]),
+      ),
+  );
 
   readonly categoriasSugeridasFaltantes = computed<Record<TipoCategoria, CategoriaPredeterminada[]>>(
     () => ({
@@ -329,7 +271,6 @@ export class DineroService {
   );
 
   readonly resumenCategorias = computed<ResumenCategoria[]>(() => {
-    const ingreso = this.configuracion().ingreso_mensual || 0;
     const gastado = new Map<string, number>();
     for (const t of soloGastos(this.movimientosDelMes())) {
       if (t.categoria_id) gastado.set(t.categoria_id, (gastado.get(t.categoria_id) ?? 0) + t.monto);
@@ -337,7 +278,7 @@ export class DineroService {
 
     return this.categoriasGasto().map((categoria) => {
       const gastadoCategoria = gastado.get(categoria.id) ?? 0;
-      const presupuesto = ingreso * (categoria.porcentaje / PORCENTAJE_TOTAL);
+      const presupuesto = categoria.presupuesto_mensual || 0;
       const porcentajeUsado =
         presupuesto > 0
           ? Math.min((gastadoCategoria / presupuesto) * PORCENTAJE_TOTAL, PORCENTAJE_TOTAL)
@@ -346,7 +287,7 @@ export class DineroService {
       return {
         categoria,
         color: this.colorDeCategoria(categoria.id),
-        icono: this.iconoDeCategoria(categoria.nombre),
+        icono: this.iconoDeCategoria(categoria),
         subcategorias: this.subcategoriasDe(categoria.id),
         presupuesto,
         gastado: gastadoCategoria,
@@ -363,13 +304,14 @@ export class DineroService {
       const nombre = normalizarTexto(r.categoria.nombre);
       return NOMBRES_CATEGORIA_OCIO.some((clave) => nombre.includes(clave));
     });
-    if (ocio && this.configuracion().ingreso_mensual > 0) return ocio.disponible;
+    if (ocio && ocio.presupuesto > 0) return ocio.disponible;
     // Sin esa categoría: lo que hay en débito menos lo comprometido del mes
     return this.patrimonio().saldoDisponible - this.comprometidoEsteMes();
   });
 
-  readonly totalPorcentajes = computed<number>(() =>
-    this.categoriasGasto().reduce((acc, cg) => acc + cg.porcentaje, 0),
+  // Suma de los presupuestos mensuales de las categorías de gasto
+  readonly presupuestoTotal = computed<number>(() =>
+    this.categoriasGasto().reduce((acc, cg) => acc + (cg.presupuesto_mensual || 0), 0),
   );
 
   readonly gruposCategoria = computed<Record<TipoCategoria, GrupoCategoria[]>>(() => ({
@@ -401,8 +343,13 @@ export class DineroService {
     return this.subcategoriasPorCategoria().get(categoriaGrandeId) ?? [];
   }
 
-  movimientosDeMes(claveMes: string): Transaccion[] {
-    return this.movimientos().filter((m) => m.fecha.startsWith(claveMes));
+  movimientosDeMes(mes: string): Transaccion[] {
+    return this.movimientos().filter((m) => m.fecha.startsWith(mes));
+  }
+
+  // Transacciones entre dos fechas YYYY-MM-DD, ambas incluidas
+  movimientosEntre(desde: string, hasta: string): Transaccion[] {
+    return this.movimientos().filter((m) => m.fecha >= desde && m.fecha <= hasta);
   }
 
   corteDelMes(cuentaId: string): CorteTarjeta | undefined {
@@ -413,24 +360,33 @@ export class DineroService {
     return this.estado.deudasPagosDelMes().some((p) => p.deuda_id === deudaId);
   }
 
+  // Un registro marcado como omitido cuenta como "no pagado" (el usuario lo desmarcó)
   estaPagadoEsteMes(gastoFijoId: string): boolean {
-    return this.estado.pagosDelMes().some((p) => p.gasto_fijo_id === gastoFijoId);
+    return this.estado.pagosDelMes().some((p) => p.gasto_fijo_id === gastoFijoId && !p.omitido);
   }
 
   infoTarjeta(cuenta: Cuenta): InfoTarjeta {
     return calcularInfoTarjeta(cuenta, this.corteDelMes(cuenta.id));
   }
 
-  slotDeCategoria(categoriaId: string): SlotColor {
-    return this.slotPorCategoria().get(categoriaId) ?? SLOTS_COLOR[0];
+  // Clave guardable del color ('serie-N' o '#rrggbb'), para los selectores
+  claveColorDeCategoria(categoriaId: string): string {
+    return this.colorPorCategoria().get(categoriaId) ?? claveColorDeSlot(SLOTS_COLOR[0]);
   }
 
+  // CSS listo para pintar
   colorDeCategoria(categoriaId: string): string {
-    return colorDeSlot(this.slotDeCategoria(categoriaId));
+    return resolverColor(this.claveColorDeCategoria(categoriaId)) ?? colorDeSlot(SLOTS_COLOR[0]);
   }
 
-  iconoDeCategoria(nombre: string): IconDefinition {
-    return ICONOS[categoriaPredeterminadaDe(nombre)?.icono ?? 'categoria'];
+  // Icono guardado o, si no tiene, el de la categoría sugerida con ese nombre
+  nombreIconoDeCategoria(categoria: Pick<CategoriaGrande, 'nombre' | 'icono'>): NombreIcono {
+    if (esNombreIcono(categoria.icono)) return categoria.icono;
+    return categoriaPredeterminadaDe(categoria.nombre)?.icono ?? 'categoria';
+  }
+
+  iconoDeCategoria(categoria: Pick<CategoriaGrande, 'nombre' | 'icono'>): IconDefinition {
+    return ICONOS[this.nombreIconoDeCategoria(categoria)];
   }
 
   // "Alimentación › Mercado"
@@ -480,9 +436,7 @@ export class DineroService {
   // CARGA
   // ============================================
   async cargarTodo(): Promise<void> {
-    const usuarioId = this.auth.usuarioId();
     await Promise.all([
-      this.cargarConfiguracion(),
       this.cargarCuentas(),
       this.cargarCategoriasGrandes(),
       this.cargarMovimientos(),
@@ -492,92 +446,50 @@ export class DineroService {
       this.cargarCortesDelMes(),
     ]);
     await this.cargarSubcategorias();
-    // Si la sesión cambió mientras cargaba, estos datos ya no son del usuario actual
-    if (usuarioId && usuarioId === this.auth.usuarioId()) this.datosListos.set(true);
-  }
-
-  // Crea las cuentas base si el usuario no tiene ninguna, y las categorías por
-  // defecto si es un usuario nuevo (sin categorías ni transacciones). Así no
-  // reaparecen categorías que alguien con historial borró a propósito.
-  private async asegurarValoresPorDefecto(): Promise<void> {
-    if (!this.datosListos() || this.faltaMigracion()) return;
-    const tareas: Promise<MensajeError>[] = [];
-    if (this.estado.cuentas().length === 0) tareas.push(this.crearCuentasPredeterminadas());
-    if (this.categoriasGrandes().length === 0 && this.movimientos().length === 0) {
-      tareas.push(this.crearCategoriasPredeterminadas('GASTO'));
-      tareas.push(this.crearCategoriasPredeterminadas('INGRESO'));
-    }
-    const errores = await Promise.all(tareas);
-    errores.filter((e) => e !== null).forEach((e) => console.error(e));
-  }
-
-  private restaurarCache(usuarioId: string): void {
-    const cache = this.almacenamiento.leer(
-      CLAVES_ALMACENAMIENTO.cacheDinero(usuarioId),
-      esCacheDinero,
-    );
-    if (!cache) return;
-    // Los cortes y pagos son del mes en que se guardó la copia; si cambió el mes no aplican
-    const esDelMes = cache.mes === mesActual();
-    this.estado.configuracion.set(cache.configuracion);
-    this.estado.cuentas.set(cache.cuentas);
-    this.estado.categoriasGrandes.set(cache.categoriasGrandes);
-    this.estado.subcategorias.set(cache.subcategorias);
-    this.estado.metasAhorro.set(cache.metasAhorro);
-    this.estado.movimientos.set(cache.movimientos);
-    this.estado.deudas.set(cache.deudas);
-    this.estado.gastosFijos.set(cache.gastosFijos);
-    this.estado.cortesDelMes.set(esDelMes ? cache.cortesDelMes : []);
-    this.estado.deudasPagosDelMes.set(esDelMes ? cache.deudasPagosDelMes : []);
-    this.estado.pagosDelMes.set(esDelMes ? cache.pagosDelMes : []);
     this.datosListos.set(true);
   }
 
-  private limpiar(): void {
-    this.datosListos.set(false);
-    this.estado.configuracion.set(CONFIGURACION_VACIA);
-    this.estado.cuentas.set([]);
-    this.estado.categoriasGrandes.set([]);
-    this.estado.subcategorias.set([]);
-    this.estado.metasAhorro.set([]);
-    this.estado.cortesDelMes.set([]);
-    this.estado.movimientos.set([]);
-    this.estado.deudas.set([]);
-    this.estado.deudasPagosDelMes.set([]);
-    this.estado.gastosFijos.set([]);
-    this.estado.pagosDelMes.set([]);
+  // Crea las cuentas base si no hay ninguna, y las categorías por defecto si es un
+  // usuario nuevo (sin categorías ni transacciones). Así no reaparecen categorías
+  // que alguien con historial borró a propósito.
+  private async asegurarValoresPorDefecto(): Promise<void> {
+    if (!this.datosListos()) return;
+    if (this.estado.cuentas().length === 0) await this.crearCuentasPredeterminadas();
+    if (this.categoriasGrandes().length === 0 && this.movimientos().length === 0) {
+      await this.crearCategoriasPredeterminadas('GASTO');
+      await this.crearCategoriasPredeterminadas('INGRESO');
+    }
   }
 
-  async cargarConfiguracion(): Promise<void> {
-    const { data, error } = await this.db
-      .from(TABLAS_DINERO.configuracion)
-      .select('*')
-      .maybeSingle<Configuracion>();
-    if (error) {
-      console.error(error);
-      return;
+  // Los colores elegidos antes vivían en localStorage: se guardan una vez en las
+  // categorías sin color propio y se borran de las preferencias
+  private async migrarColoresLocales(): Promise<void> {
+    const locales = this.preferencias.coloresCategoria();
+    if (Object.keys(locales).length === 0) return;
+    const pendientes = this.categoriasGrandes().filter((c) => !c.color && locales[c.id]);
+    const errores = await Promise.all(
+      pendientes.map((c) =>
+        this.actualizarEnTabla(TABLAS_DINERO.categoriasGrandes, c.id, {
+          color: claveColorDeSlot(locales[c.id]),
+        }),
+      ),
+    );
+    if (errores.every((e) => e === null)) {
+      this.preferencias.limpiarColoresLegados();
+      if (pendientes.length > 0) await this.cargarCategoriasGrandes();
     }
-    this.estado.configuracion.set(data ?? CONFIGURACION_VACIA);
   }
 
   async cargarCuentas(): Promise<void> {
-    const resultado = await this.db
-      .from(TABLAS_DINERO.cuentas)
-      .select('*')
-      .order('orden', { ascending: true })
-      .order('created_at', { ascending: true })
-      .overrideTypes<Cuenta[], { merge: false }>();
-    this.faltaMigracion.set(CODIGOS_TABLA_INEXISTENTE.includes(resultado.error?.code ?? ''));
-    this.aplicarLista(resultado, this.estado.cuentas);
+    const cuentas = await this.db.tabla<Cuenta>(TABLAS_DINERO.cuentas).toArray();
+    cuentas.sort((a, b) => a.orden - b.orden || a.created_at.localeCompare(b.created_at));
+    this.estado.cuentas.set(cuentas);
   }
 
   async cargarCategoriasGrandes(): Promise<void> {
-    const resultado = await this.db
-      .from(TABLAS_DINERO.categoriasGrandes)
-      .select('*')
-      .order('orden', { ascending: true })
-      .overrideTypes<CategoriaGrande[], { merge: false }>();
-    this.aplicarLista(resultado, this.estado.categoriasGrandes);
+    const categorias = await this.db.tabla<CategoriaGrande>(TABLAS_DINERO.categoriasGrandes).toArray();
+    categorias.sort((a, b) => a.orden - b.orden);
+    this.estado.categoriasGrandes.set(categorias);
   }
 
   async cargarSubcategorias(): Promise<void> {
@@ -585,77 +497,57 @@ export class DineroService {
       this.estado.subcategorias.set([]);
       return;
     }
-    const resultado = await this.db
-      .from(TABLAS_DINERO.subcategorias)
-      .select('*')
-      .order('nombre', { ascending: true })
-      .overrideTypes<Subcategoria[], { merge: false }>();
-    this.aplicarLista(resultado, this.estado.subcategorias);
+    const subcategorias = await this.db.tabla<Subcategoria>(TABLAS_DINERO.subcategorias).toArray();
+    subcategorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    this.estado.subcategorias.set(subcategorias);
   }
 
   async cargarMetasAhorro(): Promise<void> {
-    const resultado = await this.db
-      .from(TABLAS_DINERO.metasAhorro)
-      .select('*')
-      .eq('activa', true)
-      .order('created_at', { ascending: true })
-      .overrideTypes<MetaAhorro[], { merge: false }>();
-    this.aplicarLista(resultado, this.estado.metasAhorro);
+    const metas = await this.db.tabla<MetaAhorro>(TABLAS_DINERO.metasAhorro).toArray();
+    this.estado.metasAhorro.set(
+      metas.filter((m) => m.activa).sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    );
   }
 
   async cargarCortesDelMes(): Promise<void> {
-    const resultado = await this.db
-      .from(TABLAS_DINERO.tarjetaCortes)
-      .select('*')
-      .eq('mes', mesActual())
-      .not('cuenta_id', 'is', null)
-      .overrideTypes<CorteTarjeta[], { merge: false }>();
-    this.aplicarLista(resultado, this.estado.cortesDelMes);
+    const mes = mesActual();
+    const cortes = await this.db.tabla<CorteTarjeta>(TABLAS_DINERO.tarjetaCortes).toArray();
+    this.estado.cortesDelMes.set(cortes.filter((c) => c.mes === mes && c.cuenta_id !== null));
   }
 
   async cargarMovimientos(): Promise<void> {
-    const resultado = await this.db
-      .from(TABLAS_DINERO.movimientos)
-      .select('*')
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .overrideTypes<Transaccion[], { merge: false }>();
-    this.aplicarLista(resultado, this.estado.movimientos);
+    const movimientos = await this.db.tabla<Transaccion>(TABLAS_DINERO.movimientos).toArray();
+    movimientos.sort(
+      (a, b) =>
+        b.fecha.localeCompare(a.fecha) ||
+        b.created_at.localeCompare(a.created_at) ||
+        a.id.localeCompare(b.id),
+    );
+    this.estado.movimientos.set(movimientos);
   }
 
   async cargarDeudas(): Promise<void> {
-    const deudas = await this.db
-      .from(TABLAS_DINERO.deudas)
-      .select('*')
-      .eq('activa', true)
-      .eq('tipo', TIPO_DEUDA_NORMAL)
-      .order('created_at', { ascending: true })
-      .overrideTypes<Deuda[], { merge: false }>();
-    if (!this.aplicarLista(deudas, this.estado.deudas)) return;
+    const deudas = await this.db.tabla<DeudaFila>(TABLAS_DINERO.deudas).toArray();
+    this.estado.deudas.set(
+      deudas
+        .filter((d) => d.activa && (d.tipo ?? TIPO_DEUDA_NORMAL) === TIPO_DEUDA_NORMAL)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    );
 
-    const pagos = await this.db
-      .from(TABLAS_DINERO.deudasPagos)
-      .select('*')
-      .eq('mes', mesActual())
-      .overrideTypes<DeudaPago[], { merge: false }>();
-    this.aplicarLista(pagos, this.estado.deudasPagosDelMes);
+    const mes = mesActual();
+    const pagos = await this.db.tabla<DeudaPago>(TABLAS_DINERO.deudasPagos).toArray();
+    this.estado.deudasPagosDelMes.set(pagos.filter((p) => p.mes === mes));
   }
 
   async cargarGastosFijos(): Promise<void> {
-    const fijos = await this.db
-      .from(TABLAS_DINERO.gastosFijos)
-      .select('*')
-      .eq('activo', true)
-      .order('created_at', { ascending: true })
-      .overrideTypes<GastoFijo[], { merge: false }>();
-    if (!this.aplicarLista(fijos, this.estado.gastosFijos)) return;
+    const fijos = await this.db.tabla<GastoFijo>(TABLAS_DINERO.gastosFijos).toArray();
+    this.estado.gastosFijos.set(
+      fijos.filter((g) => g.activo).sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    );
 
-    const pagos = await this.db
-      .from(TABLAS_DINERO.gastosFijosPagos)
-      .select('*')
-      .eq('mes', mesActual())
-      .overrideTypes<GastoFijoPago[], { merge: false }>();
-    this.aplicarLista(pagos, this.estado.pagosDelMes);
+    const mes = mesActual();
+    const pagos = await this.db.tabla<GastoFijoPago>(TABLAS_DINERO.gastosFijosPagos).toArray();
+    this.estado.pagosDelMes.set(pagos.filter((p) => p.mes === mes));
   }
 
   // ============================================
@@ -693,7 +585,7 @@ export class DineroService {
       categoria_id: null,
       subcategoria_id: null,
       categoria: ETIQUETA_AJUSTE_SALDO,
-      descripcion: `Ajuste manual: saldo real ${formatoMoneda(saldoReal)}`,
+      descripcion: `Ajuste manual: saldo real ${this.monedaService.formatear(saldoReal)}`,
     });
   }
 
@@ -724,34 +616,44 @@ export class DineroService {
   }
 
   private async crearCuentasPredeterminadas(): Promise<MensajeError> {
-    const filas: CuentaPayload[] = CUENTAS_PREDETERMINADAS.map((c, i) => ({
-      nombre: c.nombre,
-      tipo: c.tipo,
-      color: c.color,
-      saldo_inicial: 0,
-      dia_corte: null,
-      dia_limite_pago: null,
-      orden: i + 1,
-    }));
-    // ignoreDuplicates: si otra pestaña ya las creó, no falla por el nombre repetido
-    const { error } = await this.db
-      .from(TABLAS_DINERO.cuentas)
-      .upsert(filas, { onConflict: 'user_id,nombre', ignoreDuplicates: true });
-    if (error) return error.message;
-    await this.cargarCuentas();
-    return null;
+    try {
+      const ahora = new Date().toISOString();
+      const filas: Cuenta[] = CUENTAS_PREDETERMINADAS.map((c, i) => ({
+        id: nuevoId(),
+        nombre: c.nombre,
+        tipo: c.tipo,
+        color: c.color,
+        saldo_inicial: 0,
+        dia_corte: null,
+        dia_limite_pago: null,
+        orden: i + 1,
+        created_at: ahora,
+      }));
+      await this.db.tabla<Cuenta>(TABLAS_DINERO.cuentas).bulkAdd(filas);
+      await this.cargarCuentas();
+      return null;
+    } catch (error) {
+      return mensajeError(error);
+    }
   }
 
   // ============================================
   // TARJETAS DE CRÉDITO
   // ============================================
   async guardarCorte(payload: CortePayload): Promise<MensajeError> {
-    const { error } = await this.db
-      .from(TABLAS_DINERO.tarjetaCortes)
-      .upsert(payload, { onConflict: 'cuenta_id,mes' });
-    if (error) return error.message;
-    await this.cargarCortesDelMes();
-    return null;
+    try {
+      const tabla = this.db.tabla<CorteTarjeta>(TABLAS_DINERO.tarjetaCortes);
+      const existente = await tabla
+        .where('[cuenta_id+mes]')
+        .equals([payload.cuenta_id, payload.mes])
+        .first();
+      if (existente) await tabla.put({ ...existente, ...payload });
+      else await tabla.add({ ...payload, id: nuevoId(), pagado: false, movimiento_id: null });
+      await this.cargarCortesDelMes();
+      return null;
+    } catch (error) {
+      return mensajeError(error);
+    }
   }
 
   // Pagar la tarjeta es un TRASLADO: sale de la cuenta elegida y reduce la deuda
@@ -772,7 +674,7 @@ export class DineroService {
       categoria: ETIQUETA_PAGO_TARJETA,
       descripcion: `Pago ${tarjeta.nombre}`,
     });
-    if (error) return error.message;
+    if (error || !transaccion) return error ?? 'No se pudo registrar el pago';
 
     const corte = this.corteDelMes(tarjeta.id);
     const errorCorte =
@@ -825,31 +727,127 @@ export class DineroService {
       categoria: ETIQUETA_PAGO_DEUDA,
       descripcion: `Pago: ${deuda.nombre}`,
     });
-    if (error) return error.message;
+    if (error || !transaccion) return error ?? 'No se pudo registrar el pago';
 
-    const { error: errorRegistro } = await this.db
-      .from(TABLAS_DINERO.deudasPagos)
-      .upsert(
-        { deuda_id: deuda.id, mes: mesActual(), movimiento_id: transaccion.id },
-        { onConflict: 'deuda_id,mes' },
-      );
+    try {
+      const tabla = this.db.tabla<DeudaPago>(TABLAS_DINERO.deudasPagos);
+      const mes = mesActual();
+      const existente = await tabla.where('[deuda_id+mes]').equals([deuda.id, mes]).first();
+      if (existente) await tabla.put({ ...existente, movimiento_id: transaccion.id });
+      else await tabla.add({ id: nuevoId(), deuda_id: deuda.id, mes, movimiento_id: transaccion.id });
+    } catch (errorRegistro) {
+      await this.cargarDeudas();
+      await this.cargarMovimientos();
+      return mensajeError(errorRegistro);
+    }
 
     await Promise.all([this.cargarDeudas(), this.cargarMovimientos()]);
-    return errorRegistro?.message ?? null;
+    return null;
   }
 
   // ============================================
   // GASTOS FIJOS
   // ============================================
+  // Marcar a mano crea el GASTO del mes; desmarcar lo borra y deja el mes como
+  // "omitido" para que la aplicación automática no lo vuelva a registrar.
   async togglePagoGastoFijo(gasto: GastoFijo, marcarComoPagado: boolean): Promise<MensajeError> {
     const error = marcarComoPagado
-      ? await this.registrarPagoGastoFijo(gasto)
-      : await this.anularPagoGastoFijo(gasto.id);
+      ? await this.registrarPagoGastoFijo(gasto, mesActual(), fechaHoyIso())
+      : await this.omitirPagoGastoFijo(gasto.id);
     await Promise.all([this.cargarGastosFijos(), this.cargarMovimientos()]);
     return error;
   }
 
-  private async registrarPagoGastoFijo(gasto: GastoFijo): Promise<MensajeError> {
+  // Aplica los gastos fijos cuyo día ya llegó (este mes o, si la app no se abrió,
+  // los meses recientes). El registro del mes evita aplicarlo dos veces.
+  async aplicarGastosFijosPendientes(): Promise<void> {
+    if (this.aplicandoGastosFijos) return;
+    const gastos = this.gastosFijos().filter((g) => g.dia_aplicacion);
+    if (gastos.length === 0) return;
+
+    this.aplicandoGastosFijos = true;
+    try {
+      const registrados = await this.registrosRecientesGastosFijos(gastos.map((g) => g.id));
+      if (!registrados) return;
+      const pendientes = aplicacionesPendientes(gastos, registrados);
+      const aplicados: string[] = [];
+      for (const aplicacion of pendientes) {
+        if (await this.aplicarGastoFijo(aplicacion)) aplicados.push(aplicacion.gasto.nombre);
+      }
+      if (aplicados.length > 0) {
+        await Promise.all([this.cargarGastosFijos(), this.cargarMovimientos()]);
+        const plural = aplicados.length === 1 ? 'Se aplicó el gasto fijo' : 'Se aplicaron los gastos fijos';
+        this.notificacion.informar(`${plural}: ${aplicados.join(', ')}`);
+      }
+    } finally {
+      this.aplicandoGastosFijos = false;
+    }
+  }
+
+  // Claves "gastoId|mes" con registro (pagado u omitido) en la ventana de recuperación
+  private async registrosRecientesGastosFijos(ids: readonly string[]): Promise<Set<string> | null> {
+    const meses = new Set(
+      Array.from({ length: MESES_RECUPERACION_GASTOS_FIJOS }, (_, i) =>
+        claveMes(mesRelativo(new Date(), -i)),
+      ),
+    );
+    try {
+      const pagos = await this.db
+        .tabla<GastoFijoPago>(TABLAS_DINERO.gastosFijosPagos)
+        .where('gasto_fijo_id')
+        .anyOf(ids)
+        .toArray();
+      return new Set(
+        pagos
+          .filter((p) => meses.has(p.mes))
+          .map((p) => claveRegistroGastoFijo(p.gasto_fijo_id, p.mes)),
+      );
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  }
+
+  private async aplicarGastoFijo({ gasto, mes, fecha }: AplicacionGastoFijo): Promise<boolean> {
+    const tabla = this.db.tabla<GastoFijoPago>(TABLAS_DINERO.gastosFijosPagos);
+    const existente = await tabla.where('[gasto_fijo_id+mes]').equals([gasto.id, mes]).first();
+    if (existente) return false;
+
+    const pago: GastoFijoPago = { id: nuevoId(), gasto_fijo_id: gasto.id, mes, omitido: false };
+    try {
+      await tabla.add(pago);
+    } catch {
+      return false;
+    }
+
+    const errorTransaccion = await this.crearTransaccionGastoFijo(gasto, fecha, pago.id);
+    if (errorTransaccion) {
+      await this.eliminarDeTabla(TABLAS_DINERO.gastosFijosPagos, pago.id);
+      console.error(errorTransaccion);
+      return false;
+    }
+    return true;
+  }
+
+  private async registrarPagoGastoFijo(gasto: GastoFijo, mes: string, fecha: string): Promise<MensajeError> {
+    // Puede existir el registro del mes marcado como omitido: se reutiliza
+    const tabla = this.db.tabla<GastoFijoPago>(TABLAS_DINERO.gastosFijosPagos);
+    const existente = await tabla.where('[gasto_fijo_id+mes]').equals([gasto.id, mes]).first();
+    let pagoId = existente?.id;
+    if (!pagoId) {
+      const pago: GastoFijoPago = { id: nuevoId(), gasto_fijo_id: gasto.id, mes, omitido: false };
+      try {
+        await tabla.add(pago);
+      } catch (error) {
+        return mensajeError(error);
+      }
+      pagoId = pago.id;
+    }
+    return this.crearTransaccionGastoFijo(gasto, fecha, pagoId);
+  }
+
+  // Crea el GASTO en la cuenta del gasto fijo y lo enlaza a su registro mensual
+  private async crearTransaccionGastoFijo(gasto: GastoFijo, fecha: string, pagoId: string): Promise<MensajeError> {
     // Si su cuenta se borró, se paga desde la cuenta principal
     const cuentaId = this.cuenta(gasto.cuenta_id)?.id ?? this.cuentaPrincipalId();
     if (!cuentaId) return 'Crea una cuenta antes de registrar pagos';
@@ -857,38 +855,56 @@ export class DineroService {
     const { data: transaccion, error } = await this.insertarTransaccion({
       tipo: 'GASTO',
       monto: gasto.monto,
-      fecha: fechaHoyIso(),
+      fecha,
       cuenta_origen_id: cuentaId,
       cuenta_destino_id: null,
       categoria_id: gasto.categoria_id,
       subcategoria_id: gasto.subcategoria_id,
       categoria: gasto.categoria_id ? null : gasto.nombre,
-      descripcion: `Pago automático: ${gasto.nombre}`,
+      descripcion: `Gasto fijo: ${gasto.nombre}`,
     });
-    if (error) return error.message;
-
-    const { error: errorPago } = await this.db.from(TABLAS_DINERO.gastosFijosPagos).insert({
-      gasto_fijo_id: gasto.id,
-      mes: mesActual(),
+    if (error || !transaccion) return error ?? 'No se pudo registrar el gasto';
+    return this.actualizarEnTabla(TABLAS_DINERO.gastosFijosPagos, pagoId, {
       movimiento_id: transaccion.id,
+      omitido: false,
     });
-    return errorPago?.message ?? null;
   }
 
-  private async anularPagoGastoFijo(gastoFijoId: string): Promise<MensajeError> {
+  private async omitirPagoGastoFijo(gastoFijoId: string): Promise<MensajeError> {
     const pago = this.estado.pagosDelMes().find((p) => p.gasto_fijo_id === gastoFijoId);
     if (!pago) return null;
     if (pago.movimiento_id) {
       const error = await this.eliminarDeTabla(TABLAS_DINERO.movimientos, pago.movimiento_id);
       if (error) return error;
     }
-    return this.eliminarDeTabla(TABLAS_DINERO.gastosFijosPagos, pago.id);
+    return this.actualizarEnTabla(TABLAS_DINERO.gastosFijosPagos, pago.id, {
+      omitido: true,
+      movimiento_id: null,
+    });
   }
 
-  guardarGastoFijo(payload: GastoFijoPayload, id?: string): Promise<MensajeError> {
-    return this.conRecarga(this.guardarEnTabla(TABLAS_DINERO.gastosFijos, payload, id), () =>
+  // Con la app abierta se vuelve a revisar cada hora (p. ej. si pasa la medianoche)
+  private iniciarRevisionGastosFijos(): void {
+    this.detenerRevisionGastosFijos();
+    this.temporizadorGastosFijos = setInterval(
+      () => void this.aplicarGastosFijosPendientes(),
+      INTERVALO_REVISION_GASTOS_FIJOS_MS,
+    );
+  }
+
+  private detenerRevisionGastosFijos(): void {
+    if (this.temporizadorGastosFijos !== null) clearInterval(this.temporizadorGastosFijos);
+    this.temporizadorGastosFijos = null;
+  }
+
+  // Un gasto nuevo empieza a aplicarse desde hoy: no cobra meses ni días ya pasados
+  async guardarGastoFijo(payload: GastoFijoPayload, id?: string): Promise<MensajeError> {
+    const datos: GastoFijoPayload = id ? payload : { ...payload, aplicar_desde: fechaHoyIso() };
+    const error = await this.conRecarga(this.guardarEnTabla(TABLAS_DINERO.gastosFijos, datos, id), () =>
       this.cargarGastosFijos(),
     );
+    if (!error) await this.aplicarGastosFijosPendientes();
+    return error;
   }
 
   // Borrado lógico: conserva el historial de pagos
@@ -902,77 +918,52 @@ export class DineroService {
   // ============================================
   // PRESUPUESTO Y CATEGORÍAS
   // ============================================
-  async guardarConfiguracion(
-    ingresoMensual: number,
-    porcentajes: PorcentajesPorCategoria,
-  ): Promise<MensajeError> {
-    const errores = await Promise.all([
-      this.guardarIngresoMensual(ingresoMensual),
-      ...Object.entries(porcentajes).map(([id, porcentaje]) =>
-        this.actualizarEnTabla(TABLAS_DINERO.categoriasGrandes, id, { porcentaje }),
+  // Guarda el presupuesto mensual de varias categorías de una vez
+  async guardarPresupuestos(presupuestos: PresupuestosPorCategoria): Promise<MensajeError> {
+    const errores = await Promise.all(
+      Object.entries(presupuestos).map(([id, monto]) =>
+        this.actualizarEnTabla(TABLAS_DINERO.categoriasGrandes, id, {
+          presupuesto_mensual: Math.max(monto, 0),
+        }),
       ),
-    ]);
-    await Promise.all([this.cargarConfiguracion(), this.cargarCategoriasGrandes()]);
+    );
+    await this.cargarCategoriasGrandes();
     return errores.find((e) => e !== null) ?? null;
   }
 
-  private async guardarIngresoMensual(ingresoMensual: number): Promise<MensajeError> {
-    const { data: existente, error } = await this.db
-      .from(TABLAS_DINERO.configuracion)
-      .select('id')
-      .maybeSingle<FilaConId>();
-    if (error) return error.message;
-    return this.guardarEnTabla(
-      TABLAS_DINERO.configuracion,
-      { ingreso_mensual: ingresoMensual },
-      existente?.id,
-    );
-  }
-
-  // `slot` = color elegido para la categoría (se guarda en las preferencias locales)
-  async guardarCategoriaGrande(
-    payload: CategoriaGrandePayload,
-    id?: string,
-    slot?: SlotColor,
-  ): Promise<MensajeError> {
-    const idsPrevios = new Set(this.categoriasGrandes().map((c) => c.id));
-    const error = await this.conRecarga(
+  guardarCategoriaGrande(payload: CategoriaGrandePayload, id?: string): Promise<MensajeError> {
+    return this.conRecarga(
       this.guardarEnTabla(TABLAS_DINERO.categoriasGrandes, payload, id),
       () => this.recargarCategorias(),
     );
-    if (!error && slot) {
-      // Una categoría nueva se reconoce como la única que no estaba antes de guardar
-      const destino = id ?? this.categoriasGrandes().find((c) => !idsPrevios.has(c.id))?.id;
-      if (destino) this.preferencias.asignarColor(destino, slot);
-    }
-    return error;
   }
 
-  async eliminarCategoriaGrande(id: string): Promise<MensajeError> {
-    const error = await this.conRecarga(
-      this.eliminarDeTabla(TABLAS_DINERO.categoriasGrandes, id),
-      () => this.recargarCategorias(),
+  eliminarCategoriaGrande(id: string): Promise<MensajeError> {
+    return this.conRecarga(this.eliminarDeTabla(TABLAS_DINERO.categoriasGrandes, id), () =>
+      this.recargarCategorias(),
     );
-    if (!error) this.preferencias.quitarColor(id);
-    return error;
   }
 
-  // Crea las categorías sugeridas de ese tipo que aún no existen. Las de gasto usan
-  // sus porcentajes sugeridos (suman 100 %) si el presupuesto está vacío; si no,
-  // entran en 0 % para no descuadrar la distribución que ya tiene el usuario.
+  // Crea las categorías sugeridas de ese tipo que aún no existen, con su color e
+  // icono. Entran sin presupuesto: cada quien define cuánto asignarles.
   async crearCategoriasPredeterminadas(tipo: TipoCategoria): Promise<MensajeError> {
     const faltantes = this.categoriasSugeridasFaltantes()[tipo];
     if (faltantes.length === 0) return null;
     const existentes = this.categoriasGrandes().length;
-    const presupuestoVacio = this.categoriasGasto().length === 0;
-    const filas: CategoriaGrandePayload[] = faltantes.map((sugerida, i) => ({
+    const filas: CategoriaGrande[] = faltantes.map((sugerida, i) => ({
+      id: nuevoId(),
       nombre: sugerida.nombre,
       tipo,
-      porcentaje: tipo === 'GASTO' && presupuestoVacio ? sugerida.porcentaje : 0,
+      presupuesto_mensual: 0,
+      color: claveColorDeSlot(sugerida.slot),
+      icono: sugerida.icono,
       orden: existentes + i + 1,
     }));
-    const { error } = await this.db.from(TABLAS_DINERO.categoriasGrandes).insert(filas);
-    if (error) return error.message;
+    try {
+      await this.db.tabla<CategoriaGrande>(TABLAS_DINERO.categoriasGrandes).bulkAdd(filas);
+    } catch (error) {
+      return mensajeError(error);
+    }
     await this.recargarCategorias();
     return null;
   }
@@ -1035,15 +1026,6 @@ export class DineroService {
   // ============================================
   // HELPERS DE ACCESO A DATOS
   // ============================================
-  private aplicarLista<T>(resultado: RespuestaLista<T>, destino: WritableSignal<T[]>): boolean {
-    if (resultado.error) {
-      console.error(resultado.error);
-      return false;
-    }
-    destino.set(resultado.data ?? []);
-    return true;
-  }
-
   // Ejecuta la operación y, si salió bien, recarga los datos afectados
   private async conRecarga(
     operacion: Promise<MensajeError>,
@@ -1056,8 +1038,14 @@ export class DineroService {
 
   private async insertarTransaccion(
     payload: TransaccionPayload,
-  ): Promise<PostgrestSingleResponse<FilaConId>> {
-    return this.db.from(TABLAS_DINERO.movimientos).insert(payload).select('id').single<FilaConId>();
+  ): Promise<{ data: Transaccion | null; error: MensajeError }> {
+    try {
+      const fila: Transaccion = { ...payload, id: nuevoId(), created_at: new Date().toISOString() };
+      await this.db.tabla<Transaccion>(TABLAS_DINERO.movimientos).add(fila);
+      return { data: fila, error: null };
+    } catch (error) {
+      return { data: null, error: mensajeError(error) };
+    }
   }
 
   // Inserta si no hay id; actualiza si lo hay
@@ -1066,10 +1054,19 @@ export class DineroService {
     payload: T,
     id?: string,
   ): Promise<MensajeError> {
-    const { error } = id
-      ? await this.db.from(tabla).update(payload).eq('id', id)
-      : await this.db.from(tabla).insert(payload);
-    return error?.message ?? null;
+    try {
+      const t = this.db.tabla<T>(tabla);
+      if (id) {
+        const actual = await t.get(id);
+        if (actual) await t.put({ ...actual, ...payload });
+        else await t.add({ ...payload, id } as T);
+      } else {
+        await t.add({ ...payload, id: nuevoId(), created_at: new Date().toISOString() } as T);
+      }
+      return null;
+    } catch (error) {
+      return mensajeError(error);
+    }
   }
 
   private async actualizarEnTabla<T extends object>(
@@ -1077,12 +1074,22 @@ export class DineroService {
     id: string,
     cambios: T,
   ): Promise<MensajeError> {
-    const { error } = await this.db.from(tabla).update(cambios).eq('id', id);
-    return error?.message ?? null;
+    try {
+      const t = this.db.tabla<T>(tabla);
+      const actual = await t.get(id);
+      if (actual) await t.put({ ...actual, ...cambios });
+      return null;
+    } catch (error) {
+      return mensajeError(error);
+    }
   }
 
   private async eliminarDeTabla(tabla: TablaDinero, id: string): Promise<MensajeError> {
-    const { error } = await this.db.from(tabla).delete().eq('id', id);
-    return error?.message ?? null;
+    try {
+      await this.db.tabla<{ id: string }>(tabla).delete(id);
+      return null;
+    } catch (error) {
+      return mensajeError(error);
+    }
   }
 }

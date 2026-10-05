@@ -5,15 +5,23 @@
 </button>
 
 <mat-menu #menu="matMenu" xPosition="before">
+  <button mat-menu-item type="button" (click)="enviarPorQr()">
+    <fa-icon [icon]="iconos.qr" class="icono-menu" />
+    <span>Enviar a otro dispositivo (QR)</span>
+  </button>
+  <button mat-menu-item type="button" (click)="recibirPorQr()">
+    <fa-icon [icon]="iconos.camara" class="icono-menu" />
+    <span>Recibir por QR</span>
+  </button>
   <button mat-menu-item type="button" (click)="exportar()">
     <fa-icon [icon]="iconos.exportar" class="icono-menu" />
     <span>Exportar datos (.json)</span>
   </button>
   <button mat-menu-item type="button" (click)="elegirArchivo()">
     <fa-icon [icon]="iconos.importar" class="icono-menu" />
-    <span>Importar respaldo…</span>
+    <span>Importar respaldo (.json)…</span>
   </button>
 </mat-menu>
 
 <input #selectorArchivo type="file" accept="application/json,.json" class="sr-only" tabindex="-1"
-  aria-hidden="true" (change)="importar()" />
+  aria-hidden="true" (change)="importarArchivo()" />

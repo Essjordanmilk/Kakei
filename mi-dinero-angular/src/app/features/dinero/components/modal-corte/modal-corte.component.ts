@@ -3,6 +3,9 @@ import { FormsModule } from '@angular/forms';
 import { NotificacionService } from '../../../../core/notificacion.service';
 import { formatoMesAnio, mesActual } from '../../../../core/utils';
 import { CampoFechaComponent } from '../../../../shared/components/campo-fecha/campo-fecha.component';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
+import { firmaFormulario } from '../../../../shared/utils/formulario';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { fechaLimiteSugerida } from '../../dinero.calculos';
 import { CorteTarjeta, Cuenta } from '../../dinero.models';
@@ -11,7 +14,7 @@ import { DineroService } from '../../dinero.service';
 // Registra o edita el monto del corte de este mes de una tarjeta de crédito
 @Component({
   selector: 'app-modal-corte',
-  imports: [FormsModule, CampoFechaComponent, ModalComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, CampoFechaComponent, CampoMontoComponent, ModalComponent],
   templateUrl: './modal-corte.component.html',
 })
 export class ModalCorteComponent {
@@ -36,6 +39,18 @@ export class ModalCorteComponent {
   );
 
   protected readonly titulo = computed<string>(() => `Corte de ${this.tarjeta().nombre}`);
+
+  private readonly borrador = computed(() => ({
+    monto: this.monto(),
+    fechaLimite: this.fechaLimite(),
+  }));
+  private readonly borradorInicial = linkedSignal({
+    source: () => this.tarjeta(),
+    computation: () => firmaFormulario(this.borrador()),
+  });
+  protected readonly hayCambios = computed(
+    () => firmaFormulario(this.borrador()) !== this.borradorInicial(),
+  );
 
   protected async guardar(): Promise<void> {
     const monto = this.monto();

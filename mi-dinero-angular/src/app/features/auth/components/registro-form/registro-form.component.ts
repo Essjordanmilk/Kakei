@@ -1,6 +1,9 @@
 import { Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ErrorStateMatcher } from '@angular/material/core';
+import { MatSelectChange } from '@angular/material/select';
 import { Moneda, MONEDA_POR_DEFECTO, MONEDAS, PerfilRegistro } from '../../../../core/auth.models';
+import { fechaHoyIso } from '../../../../core/utils';
 import { AuthService } from '../../../../core/auth.service';
 import {
   emailValido,
@@ -8,6 +11,8 @@ import {
   evaluarPassword,
   telefonoValido,
 } from '../../../../core/validacion';
+import { CampoFechaComponent } from '../../../../shared/components/campo-fecha/campo-fecha.component';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
 import { FuerzaPasswordComponent } from '../fuerza-password/fuerza-password.component';
 import { PasswordInputComponent } from '../password-input/password-input.component';
 
@@ -24,12 +29,14 @@ const CAMPOS_REGISTRO: readonly CampoRegistro[] = [
   'confirmar',
 ];
 
+const SIN_ERROR: ErrorStateMatcher = { isErrorState: () => false };
+
 const MENSAJE_REGISTRO_EXITOSO =
   'Cuenta creada correctamente. Revisa tu correo para confirmarla e inicia sesión.';
 
 @Component({
   selector: 'app-registro-form',
-  imports: [FormsModule, PasswordInputComponent, FuerzaPasswordComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, CampoFechaComponent, PasswordInputComponent, FuerzaPasswordComponent],
   templateUrl: './registro-form.component.html',
   styleUrl: './registro-form.component.css',
 })
@@ -40,6 +47,7 @@ export class RegistroFormComponent {
   readonly registrado = output<string>();
 
   protected readonly monedas = MONEDAS;
+  protected readonly hoy = fechaHoyIso();
 
   protected readonly nombres = signal('');
   protected readonly apellidos = signal('');
@@ -86,6 +94,20 @@ export class RegistroFormComponent {
     }
     return visibles;
   });
+
+  // Un matcher por campo: marca el mat-form-field en rojo cuando su error es visible
+  private readonly matchers = new Map<CampoRegistro, ErrorStateMatcher>(
+    CAMPOS_REGISTRO.map((campo) => [campo, { isErrorState: () => !!this.erroresVisibles()[campo] }]),
+  );
+
+  protected matcher(campo: CampoRegistro): ErrorStateMatcher {
+    return this.matchers.get(campo) ?? SIN_ERROR;
+  }
+
+  protected cambiarMoneda(evento: MatSelectChange): void {
+    const moneda = MONEDAS.find((m) => m === evento.value);
+    if (moneda) this.moneda.set(moneda);
+  }
 
   protected marcarTocado(campo: CampoRegistro): void {
     this.tocados.update((actuales) => new Set(actuales).add(campo));

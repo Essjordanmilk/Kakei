@@ -1,7 +1,9 @@
 import { Component, computed, inject, input, linkedSignal, output, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NotificacionService } from '../../../../core/notificacion.service';
-import { formatoMoneda } from '../../../../core/utils';
+import { MonedaService } from '../../../../core/moneda.service';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { MonedaPipe } from '../../../../shared/pipes/moneda.pipe';
 import { deudaDeCredito } from '../../dinero.calculos';
@@ -13,12 +15,13 @@ import { SelectorCuentaComponent } from '../selector-cuenta/selector-cuenta.comp
 // Iguala el saldo calculado de una cuenta con el saldo real creando un ingreso o gasto de ajuste
 @Component({
   selector: 'app-modal-ajuste-saldo',
-  imports: [FormsModule, ModalComponent, MonedaPipe, SelectorCuentaComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, CampoMontoComponent, ModalComponent, MonedaPipe, SelectorCuentaComponent],
   templateUrl: './modal-ajuste-saldo.component.html',
 })
 export class ModalAjusteSaldoComponent {
   protected readonly service = inject(DineroService);
   private readonly notificacion = inject(NotificacionService);
+  private readonly monedaService = inject(MonedaService);
 
   // Cuenta con la que se abre; si no se indica, la cuenta principal
   readonly cuentaInicialId = input<string | null>(null);
@@ -39,6 +42,9 @@ export class ModalAjusteSaldoComponent {
 
   protected readonly cuenta = computed<CuentaConSaldo | undefined>(() => this.service.cuenta(this.cuentaId()));
   protected readonly esCredito = computed<boolean>(() => this.cuenta()?.tipo === 'credito');
+
+  // Hay algo escrito todavía sin aplicar
+  protected readonly hayCambios = computed<boolean>(() => this.cifraReal() !== null);
 
   protected readonly cifraActual = computed<number>(() => {
     const cuenta = this.cuenta();
@@ -65,8 +71,8 @@ export class ModalAjusteSaldoComponent {
       return '✓ El saldo ya está correcto, no se necesita ajuste.';
     }
     return diferencia > 0
-      ? `Se creará un ingreso de ajuste por ${formatoMoneda(diferencia)}.`
-      : `Se creará un gasto de ajuste por ${formatoMoneda(Math.abs(diferencia))}.`;
+      ? `Se creará un ingreso de ajuste por ${this.monedaService.formatear(diferencia)}.`
+      : `Se creará un gasto de ajuste por ${this.monedaService.formatear(Math.abs(diferencia))}.`;
   });
 
   protected async confirmar(): Promise<void> {

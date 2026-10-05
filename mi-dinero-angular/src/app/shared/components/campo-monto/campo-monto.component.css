@@ -1,0 +1,8 @@
+.monto-prefijo {
+  color: var(--color-texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+input.mat-mdc-input-element {
+  font-variant-numeric: tabular-nums;
+}

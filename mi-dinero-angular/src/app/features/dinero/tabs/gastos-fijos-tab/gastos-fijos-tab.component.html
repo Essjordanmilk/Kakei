@@ -6,6 +6,11 @@
     </button>
   </header>
 
+  <p class="hint mb-14">
+    Los gastos con día configurado se descuentan solos de su cuenta ese día de cada mes.
+    Si desmarcas uno, ese mes no se vuelve a aplicar.
+  </p>
+
   <ul class="lista-tabla">
     @for (gasto of service.gastosFijos(); track gasto.id) {
       <li>

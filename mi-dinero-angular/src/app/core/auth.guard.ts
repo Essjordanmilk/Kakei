@@ -10,7 +10,7 @@ export const authGuard: CanActivateFn = async (): Promise<boolean | UrlTree> => 
   return (await auth.haySesion()) ? true : router.parseUrl(RUTAS.auth);
 };
 
-// Protege /auth: si ya hay sesión, manda al inicio.
+// Protege /auth: si ya hay sesión, manda al dashboard.
 export const guestGuard: CanActivateFn = async (): Promise<boolean | UrlTree> => {
   const auth = inject(AuthService);
   const router = inject(Router);

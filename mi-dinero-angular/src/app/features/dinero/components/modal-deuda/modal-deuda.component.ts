@@ -1,6 +1,9 @@
 import { Component, computed, inject, input, linkedSignal, output, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NotificacionService } from '../../../../core/notificacion.service';
+import { MATERIAL_FORMULARIOS } from '../../../../shared/material/material';
+import { firmaFormulario } from '../../../../shared/utils/formulario';
+import { CampoMontoComponent } from '../../../../shared/components/campo-monto/campo-monto.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { Deuda } from '../../dinero.models';
 import { DineroService } from '../../dinero.service';
@@ -8,7 +11,7 @@ import { DineroService } from '../../dinero.service';
 // Préstamos y deudas a cuotas. Las tarjetas de crédito se manejan como cuentas.
 @Component({
   selector: 'app-modal-deuda',
-  imports: [FormsModule, ModalComponent],
+  imports: [FormsModule, ...MATERIAL_FORMULARIOS, CampoMontoComponent, ModalComponent],
   templateUrl: './modal-deuda.component.html',
 })
 export class ModalDeudaComponent {
@@ -30,6 +33,20 @@ export class ModalDeudaComponent {
   );
 
   protected readonly titulo = computed<string>(() => `${this.deuda() ? 'Editar' : 'Agregar'} deuda`);
+
+  private readonly borrador = computed(() => ({
+    nombre: this.nombre(),
+    montoTotal: this.montoTotal(),
+    pagado: this.pagado(),
+    pagoMensual: this.pagoMensual(),
+  }));
+  private readonly borradorInicial = linkedSignal({
+    source: () => this.deuda(),
+    computation: () => firmaFormulario(this.borrador()),
+  });
+  protected readonly hayCambios = computed(
+    () => firmaFormulario(this.borrador()) !== this.borradorInicial(),
+  );
 
   protected async guardar(): Promise<void> {
     const nombre = this.nombre().trim();

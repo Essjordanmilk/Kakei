@@ -1,0 +1,48 @@
+/* Compartido por los diálogos de enviar y recibir por QR */
+.pasos-qr {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0 0 1rem 1.25rem;
+  font-size: 0.875rem;
+  color: var(--color-texto-suave);
+}
+
+.marco-qr {
+  display: grid;
+  justify-items: center;
+  gap: 0.625rem;
+  margin: 0 0 0.75rem;
+}
+
+.lienzo-qr,
+.video-qr {
+  width: min(100%, 20rem);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: var(--radio);
+  background: #ffffff;
+  box-shadow: var(--sombra-elevada);
+}
+
+.video-qr {
+  object-fit: cover;
+  background: #000000;
+}
+
+.marco-qr figcaption {
+  display: grid;
+  gap: 0.375rem;
+  width: min(100%, 20rem);
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--color-texto-suave);
+}
+
+.estado-qr {
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.estado-qr.error {
+  color: var(--color-negativo);
+}

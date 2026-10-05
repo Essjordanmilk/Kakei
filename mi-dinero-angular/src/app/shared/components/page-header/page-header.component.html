@@ -1,13 +1,11 @@
 <header class="topbar">
-  <a [routerLink]="rutaInicio" class="btn-header" aria-label="Ir al inicio">
-    <fa-icon [icon]="iconos.inicio" />
-    <span class="btn-header-texto">Inicio</span>
+  <a [routerLink]="rutaInicio" class="marca" [attr.aria-label]="nombreApp + ', ir al dashboard'">
+    <span class="marca-logo" aria-hidden="true">{{ logo }}</span>
+    <span class="marca-nombre">{{ nombreApp }}</span>
   </a>
 
-  <h1 class="topbar-titulo">{{ titulo() }}</h1>
-
   <div class="topbar-acciones">
-    <!-- Acciones propias del módulo (p. ej. menú de respaldo) -->
+    <!-- Acciones propias de la vista (p. ej. menú de respaldo) -->
     <ng-content />
     <app-boton-tema />
     <button type="button" class="btn-header btn-header-peligro" aria-label="Cerrar sesión" (click)="salir()">

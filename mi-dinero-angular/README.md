@@ -1,4 +1,25 @@
-# MiDineroAngular
+# Kane 金
+
+Gestión personal de dinero: cuentas (débito, crédito, inversión, ahorro), movimientos
+(gasto, ingreso, traslado), presupuesto por categoría, gastos fijos automáticos, deudas y
+respaldo (JSON o transferencia por QR entre dispositivos).
+
+Los datos viven en Supabase (con RLS por usuario) y la app guarda una copia local en
+LocalStorage para cargar al instante y funcionar sin conexión momentánea.
+
+## Base de datos (Supabase)
+
+Ejecuta los scripts de `supabase/` en el SQL Editor, **en este orden** y una sola vez:
+
+1. `perfiles.sql` — perfil de usuario y trigger de registro.
+2. `cuentas.sql` — multicuenta; migra los movimientos existentes a cuentas.
+3. `kane.sql` — gastos fijos automáticos, presupuesto por monto, color e icono de categorías.
+
+## Transferencia por QR
+
+La cámara del navegador solo funciona en HTTPS (o `localhost`). En el móvil, abre Kane,
+inicia sesión y usa **Respaldo → Recibir por QR** mientras el computador muestra
+**Respaldo → Enviar a otro dispositivo (QR)**.
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.33.
 

@@ -433,12 +433,11 @@ fieldset {
   color: var(--color-texto-suave);
 }
 
-.checkbox-pagado {
-  accent-color: var(--color-positivo);
-  cursor: pointer;
-  width: 1.25rem;
-  height: 1.25rem;
-  flex-shrink: 0;
+.fila-recurrente {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--color-primario);
 }
 
 .badge {
@@ -694,40 +693,6 @@ a:focus-visible {
   font-weight: 600;
 }
 
-.campo input,
-.campo select,
-.campo textarea {
-  width: 100%;
-  padding: 0.5625rem 0.75rem;
-  border: 1px solid var(--color-borde);
-  border-radius: 0.5rem;
-}
-
-.campo input:focus,
-.campo select:focus,
-.campo textarea:focus {
-  outline: 2px solid var(--color-primario);
-  outline-offset: 1px;
-}
-
-.campo-en-linea {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.campo .input-corto {
-  width: 5rem;
-}
-
-.campo-error {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-negativo);
-}
-
 .mensaje-error {
   margin-top: 0.75rem;
   font-size: 0.8125rem;
@@ -749,9 +714,8 @@ a:focus-visible {
   font-size: 0.875rem;
 }
 
-.filtro-mes app-campo-mes {
-  flex: 0 1 16rem;
-  margin-bottom: 0;
+.filtro-mes app-filtro-periodo {
+  flex: 0 1 26rem;
 }
 
 .resumen-filtro {
@@ -791,31 +755,6 @@ a:focus-visible {
   flex-direction: row;
   align-items: center;
   gap: 0.625rem;
-}
-
-/* Selector de color de categorías y cuentas (paleta --serie-N) */
-.selector-color {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.625rem;
-}
-
-.muestra-color {
-  width: 2rem;
-  height: 2rem;
-  background: var(--color-categoria);
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--color-superficie), 0 0 0 3px transparent;
-  transition: transform var(--duracion-rapida) var(--curva-suave), box-shadow var(--duracion-rapida) ease;
-}
-
-.muestra-color:hover {
-  transform: scale(1.1);
-}
-
-.muestra-color[aria-checked='true'] {
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px var(--color-superficie), 0 0 0 4px var(--color-texto);
 }
 
 /* ============================================
@@ -1025,19 +964,145 @@ a:focus-visible {
 /* ============================================
    ANGULAR MATERIAL — ajustes para convivir con los estilos base
 ============================================ */
-.mat-mdc-form-field input.mat-mdc-input-element {
-  background: transparent;
+/* Los campos ocupan todo el ancho de su contenedor y se separan entre sí.
+   Los tokens de M3 fijan una altura, tipografía y colores consistentes para
+   todos los formularios (login, modales, datepicker...). */
+.mat-mdc-form-field {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  --mat-form-field-container-height: 3.25rem;
+  --mat-form-field-container-vertical-padding: 0.9375rem;
+  --mat-form-field-container-text-size: 1rem;
+  --mat-form-field-container-text-line-height: 1.375rem;
+  --mat-form-field-container-shape: 0.875rem;
+  --mat-form-field-outlined-container-shape: 0.875rem;
+  --mat-form-field-outlined-outline-color: var(--color-borde);
+  --mat-form-field-outlined-hover-outline-color: var(--color-texto-suave);
+  --mat-form-field-outlined-focus-outline-color: var(--color-primario);
+  --mat-form-field-outlined-label-text-color: var(--color-texto-suave);
+  --mat-form-field-outlined-focus-label-text-color: var(--color-primario);
+  --mat-form-field-outlined-input-text-color: var(--color-texto);
+  --mat-form-field-outlined-caret-color: var(--color-primario);
 }
 
-.mat-datepicker-content {
+/* Campos con relleno sólido (sin transparencia), esquinas muy redondeadas y
+   contenido centrado. El input queda transparente para no superponer fondos. */
+.mat-mdc-form-field .mat-mdc-text-field-wrapper {
+  background: var(--color-superficie-alta);
+  border-radius: 0.875rem;
+}
+
+.mat-mdc-form-field input.mat-mdc-input-element,
+.mat-mdc-form-field textarea.mat-mdc-input-element {
+  background: transparent;
+  line-height: 1.375rem;
+}
+
+/* Contenido centrado en el campo */
+.mat-mdc-form-field input.mat-mdc-input-element {
+  text-align: center;
+}
+
+.mat-mdc-form-field input.mat-mdc-input-element::placeholder {
+  text-align: center;
+}
+
+.mat-mdc-form-field .mat-mdc-select-value,
+.mat-mdc-form-field .mat-mdc-select-value-text,
+.mat-mdc-form-field .mat-date-range-input input {
+  text-align: center;
+}
+
+/* Contorno redondeado (respaldo por si el navegador no aplica el token de forma) */
+.mat-mdc-form-field .mdc-notched-outline__leading {
+  border-radius: 0.875rem 0 0 0.875rem;
+}
+
+.mat-mdc-form-field .mdc-notched-outline__trailing {
+  border-radius: 0 0.875rem 0.875rem 0;
+}
+
+.mat-mdc-form-field:not(.mat-form-field-disabled) .mat-mdc-text-field-wrapper:hover .mdc-notched-outline__leading,
+.mat-mdc-form-field:not(.mat-form-field-disabled) .mat-mdc-text-field-wrapper:hover .mdc-notched-outline__trailing {
+  border-color: var(--color-texto-suave);
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-flex {
+  align-items: center;
+}
+
+.mat-mdc-form-field .mat-mdc-floating-label {
+  font-weight: 600;
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-icon-prefix,
+.mat-mdc-form-field .mat-mdc-form-field-text-prefix {
+  align-self: center;
+  padding-top: 0;
+}
+
+/* Diálogos: esquinas y fondo del tema de la app, con el fondo desenfocado */
+.kane-dialogo .mat-mdc-dialog-surface {
+  border-radius: var(--radio) !important;
+  background: var(--color-superficie) !important;
+}
+
+.cdk-overlay-dark-backdrop {
+  background: var(--color-velo);
+  backdrop-filter: blur(2px);
+}
+
+.kane-snackbar .mat-mdc-snackbar-surface {
+  border-radius: 0.625rem !important;
+}
+
+/* El panel de mat-select usa el fondo de las tarjetas (sólido y redondeado) */
+.panel-selector.mat-mdc-select-panel,
+.mat-mdc-select-panel {
+  background: var(--color-superficie) !important;
   border: 1px solid var(--color-borde);
+  border-radius: 0.875rem;
+}
+
+/* Selector de fecha: popup sólido (sin transparencia), redondeado y con sombra */
+.mat-datepicker-content {
+  background: var(--color-superficie) !important;
+  border: 1px solid var(--color-borde);
+  border-radius: 1rem;
   box-shadow: var(--sombra-elevada);
+  overflow: hidden;
+}
+
+.mat-datepicker-content .mat-calendar,
+.mat-datepicker-content .mat-datepicker-content-container {
+  background: var(--color-superficie);
+}
+
+/* Cabecera y celdas del calendario con el estilo redondeado del tema */
+.mat-datepicker-content .mat-calendar-body-cell-content,
+.mat-datepicker-content .mat-calendar-body-today {
+  border-radius: 50%;
+}
+
+.mat-datepicker-content .mat-calendar-body-selected {
+  background: var(--color-primario);
+  color: #ffffff;
+}
+
+.icono-prefijo {
+  margin: 0 0.25rem 0 0.75rem;
+  color: var(--color-categoria, var(--color-texto-suave));
 }
 
 .icono-menu {
   width: 1.25rem;
   margin-right: 0.75rem;
   color: var(--color-texto-suave);
+}
+
+.menu-peligro,
+.menu-peligro .icono-menu {
+  color: var(--color-negativo);
 }
 
 /* ============================================
